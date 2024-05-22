@@ -93,7 +93,7 @@ fn main() -> Result<()> {
     let weight_filenames =
         candle_examples::hub_load_safetensors(&api, "model.safetensors.index.json")?;
     let vb = unsafe { VarBuilder::from_mmaped_safetensors(&weight_filenames, dtype, &device)? };
-    let llava = LLaVA::load(vb, &llava_config);
+    let llava = LLaVA::load(vb, &llava_config)?; 
 
     println!("generating prompt tokens");
     let prompt = args.prompt.as_ref().map_or(DEFAULT_PROMPT, |p| p.as_str());
