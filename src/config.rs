@@ -53,7 +53,7 @@ pub struct LLaVAConfig {
     pub vocab_size: usize,
 }
 impl LLaVAConfig {
-    pub fn to_llama_config(&self, use_flash_attn: bool) -> Config {
+    pub fn to_llama_config(&self) -> Config {
         Config {
             hidden_size: self.hidden_size,
             intermediate_size: self.intermediate_size,
@@ -65,7 +65,7 @@ impl LLaVAConfig {
             rope_theta: self.rope_theta,
             bos_token_id: self.bos_token_id,
             eos_token_id: self.eos_token_id,
-            use_flash_attn,
+            use_flash_attn: false,
         }
     }
 }
