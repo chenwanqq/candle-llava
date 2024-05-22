@@ -13,3 +13,8 @@ implement llava using candle
 ## tokenizer
 conda create -n llava python=3.10
 pip install transformers protobuf
+
+## 使用镜像下载
+pip install -U huggingface_hub
+export HF_ENDPOINT=https://hf-mirror.com
+huggingface-cli download --resume-download liuhaotian/llava-v1.6-vicuna-7b
