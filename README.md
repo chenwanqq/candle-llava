@@ -39,3 +39,4 @@ huggingface-cli download --resume-download liuhaotian/llava-v1.6-vicuna-7b
 * The image preprocessing process has not been implemented yet
 * Not yet supporting multiple image inputs
 * Attention mask has not been implemented
+* conv template has not been implemented
