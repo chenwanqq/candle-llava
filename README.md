@@ -18,3 +18,8 @@ pip install transformers protobuf
 pip install -U huggingface_hub
 export HF_ENDPOINT=https://hf-mirror.com
 huggingface-cli download --resume-download liuhaotian/llava-v1.6-vicuna-7b
+
+## 局限性
+* 仅在liuhaotian/llava-v1.6-vicuna-7b上进行测试
+* 下载tokenizer仍然依赖python
+* clip仅支持openai/vit_large_patch14_336

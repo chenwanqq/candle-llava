@@ -1,9 +1,10 @@
+mod clip;
 mod config;
 mod model;
 
 use crate::{config::LLaVAConfig, model::LLaVA};
 use anyhow::{bail, Error as E, Result};
-use candle_core::{DType, Tensor};
+use candle_core::{DType, Device, Tensor};
 use candle_nn::VarBuilder;
 use candle_transformers::{
     generation::{LogitsProcessor, Sampling},
@@ -59,6 +60,31 @@ struct Args {
     repeat_last_n: usize,
 }
 
+//from https://github.com/huggingface/candle/blob/main/candle-examples/examples/clip/main.rs
+fn load_image<T: AsRef<std::path::Path>>(
+    path: T,
+    image_size: usize,
+    dtype: DType,
+) -> anyhow::Result<Tensor> {
+    let img = image::io::Reader::open(path)?.decode()?;
+    let (height, width) = (image_size, image_size);
+    let img = img.resize_to_fill(
+        width as u32,
+        height as u32,
+        image::imageops::FilterType::Triangle,
+    );
+
+    let img = img.to_rgb8();
+
+    let img = img.into_raw();
+    let img = Tensor::from_vec(img, (height, width, 3), &Device::Cpu)?
+        .permute((2, 0, 1))?
+        .to_dtype(dtype)?
+        .affine(2. / 255., -1.)?;
+    // .unsqueeze(0)?;
+    Ok(img)
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
     println!("{:?}", args);
@@ -93,7 +119,7 @@ fn main() -> Result<()> {
     let weight_filenames =
         candle_examples::hub_load_safetensors(&api, "model.safetensors.index.json")?;
     let vb = unsafe { VarBuilder::from_mmaped_safetensors(&weight_filenames, dtype, &device)? };
-    let llava = LLaVA::load(vb, &llava_config)?; 
+    let llava = LLaVA::load(vb, &llava_config)?;
 
     println!("generating prompt tokens");
     let prompt = args.prompt.as_ref().map_or(DEFAULT_PROMPT, |p| p.as_str());
@@ -104,6 +130,17 @@ fn main() -> Result<()> {
         .to_vec();
     let mut tokenizer = candle_examples::token_output_stream::TokenOutputStream::new(tokenizer);
 
+    println!("loading image");
+    let image_tensor = load_image(&args.image_file, 336, dtype)?
+        .to_device(&device)?
+        .unsqueeze(0)?;
+    println!("image shape: {:?}", image_tensor.shape());
+    //todo: preprocess
+    let image_result = llava.clip_vision_tower.forward(&image_tensor)?;
+    println!("image_result shape: {:?}", image_result.shape());
+
+    //based on https://github.com/huggingface/candle/blob/main/candle-examples/examples/llama/main.rs
+    /*
     println!("starting the inference loop");
     print!("{prompt}");
     let mut logits_processor = {
@@ -165,6 +202,7 @@ fn main() -> Result<()> {
         token_generated,
         (token_generated - 1) as f64 / dt.as_secs_f64(),
     );
+    */
 
     Ok(())
 }
