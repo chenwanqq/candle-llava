@@ -104,7 +104,8 @@ fn main() -> Result<()> {
     println!(
         "use python to generate tokenizer.json. Will save tokenizer to tokenizer/tokenizer.json"
     );
-    let _ = Command::new("python").args(["-c","from transformers import AutoTokenizer;tokenizer=AutoTokenizer.from_pretrained('liuhaotian/llava-v1.6-vicuna-7b');tokenizer.save_pretrained('tokenizer')"]).output().expect("python error!");
+    let output = Command::new("python").args(["-c","from transformers import AutoTokenizer;tokenizer=AutoTokenizer.from_pretrained('liuhaotian/llava-v1.6-vicuna-7b');tokenizer.save_pretrained('tokenizer')"]).output().expect("python error!");
+    println!("output: {:?}", output);
     println!("loading tokenizer from tokenizer/tokenizer.json");
     let tokenizer = Tokenizer::from_file("tokenizer/tokenizer.json").map_err(E::msg)?;
     let eos_token_id = llava_config
@@ -128,19 +129,22 @@ fn main() -> Result<()> {
         .map_err(E::msg)?
         .get_ids()
         .to_vec();
-    let mut tokenizer = candle_examples::token_output_stream::TokenOutputStream::new(tokenizer);
+    
 
     println!("loading image");
     let image_tensor = load_image(&args.image_file, 336, dtype)?
         .to_device(&device)?
         .unsqueeze(0)?;
     println!("image shape: {:?}", image_tensor.shape());
-    //todo: preprocess
-    let image_result = llava.clip_vision_tower.forward(&image_tensor)?;
-    println!("image_result shape: {:?}", image_result.shape());
+    //todo: image preprocess// multi images
+    //let image_result = llava.clip_vision_tower.forward(&image_tensor)?;
+    //println!("image_result shape: {:?}", image_result.shape());
+    let image_features = llava.encode_images(&image_tensor)?;
+    println!("image_features shape: {:?}", image_features.shape());
 
     //based on https://github.com/huggingface/candle/blob/main/candle-examples/examples/llama/main.rs
     /*
+    let mut tokenizer = candle_examples::token_output_stream::TokenOutputStream::new(tokenizer);
     println!("starting the inference loop");
     print!("{prompt}");
     let mut logits_processor = {

@@ -55,7 +55,7 @@ impl MMProjector {
                 vb.pp("model.mm_projector.0"),
             )?);
             for i in 1..mlp_depth {
-                modules = seq().add(Activation::Gelu).add(linear(
+                modules = modules.add(Activation::Gelu).add(linear(
                     config.hidden_size,
                     config.hidden_size,
                     vb.pp(format!("model.mm_projector.{}", i * 2)),
@@ -140,6 +140,13 @@ impl LLaVA {
             mm_projector,
             llama,
         })
+    }
+
+    pub fn encode_images(&self, x: &Tensor) -> Result<Tensor> {
+        let image_features = self.clip_vision_tower.forward(x)?;
+        println!("after clip vision tower: image_features shape: {:?}", image_features.shape());
+        let image_features = self.mm_projector.forward(&image_features)?;
+        Ok(image_features)
     }
 
     pub fn forward(&self, x: &Tensor, index_pos: usize, cache: &mut Cache) -> Result<Tensor> {

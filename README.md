@@ -9,7 +9,9 @@ implement llava using candle
 4. 模型实现
     * vision tower（clip，candle中有）
     * llm（从candle中可得）
-
+5. 图片预处理
+6. 输入模板的处理
+7. 图片与文字的拼接
 ## tokenizer
 conda create -n llava python=3.10
 pip install transformers protobuf
@@ -23,3 +25,5 @@ huggingface-cli download --resume-download liuhaotian/llava-v1.6-vicuna-7b
 * 仅在liuhaotian/llava-v1.6-vicuna-7b上进行测试
 * 下载tokenizer仍然依赖python
 * clip仅支持openai/vit_large_patch14_336
+* 还未实现image_preprocess的过程
+* 多图片输入
