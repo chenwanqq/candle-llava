@@ -13,7 +13,7 @@ pub struct LLaVAConfig {
     pub freeze_mm_vision_resampler: bool,
     pub hidden_act: String,
     pub hidden_size: usize,
-    pub image_aspect_ratio: String,
+    pub image_aspect_ratio: Option<String>,
     pub image_crop_resolution: usize,
     pub image_grid_pinpoints: Vec<Vec<usize>>,
     pub image_split_resolution: usize,

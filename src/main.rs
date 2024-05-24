@@ -14,8 +14,10 @@ use candle_transformers::{
 };
 use clap::Parser;
 use hf_hub::api::sync::Api;
+use image::DynamicImage;
 use std::{io::Write, process::Command};
 use tokenizers::Tokenizer;
+use clip_image_processor::CLIPImageProcessor;
 
 const EOS_TOKEN: &str = "</s>";
 const DEFAULT_PROMPT: &str = "My favorite theorem is ";
@@ -87,6 +89,7 @@ fn load_image<T: AsRef<std::path::Path>>(
     Ok(img)
 }
 
+
 fn main() -> Result<()> {
     let args = Args::parse();
     println!("{:?}", args);
@@ -134,9 +137,8 @@ fn main() -> Result<()> {
     
 
     println!("loading image");
-    let image_tensor = load_image(&args.image_file, 336, dtype)?
-        .to_device(&device)?
-        .unsqueeze(0)?;
+    //let image_processor = CLIPImageProcessor::from_pretrained(&llava_config.mm_vision_tower)?;
+    let image_tensor = load_image(&args.image_file, 336, dtype)?.unsqueeze(0)?;
     println!("image shape: {:?}", image_tensor.shape());
     //todo: image preprocess// multi images
     //let image_result = llava.clip_vision_tower.forward(&image_tensor)?;

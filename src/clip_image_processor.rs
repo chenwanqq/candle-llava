@@ -1,4 +1,5 @@
-use anyhow::Result;
+use candle_core::Result;
+use candle_core::{Device, Tensor};
 use hf_hub::api::sync::Api;
 use image::{DynamicImage, GenericImageView};
 use serde::{Deserialize, Serialize};
@@ -6,7 +7,7 @@ use serde::{Deserialize, Serialize};
 //This struct is mainly for LLaVA aplications, hence it's not completely compatible with python transformer CLIPImageProcessor  few several preprocess that LLaVA used, including "openai/clip-vit-large-patch14-336" and "openai/clip-vit-large-patch14".
 
 #[derive(Serialize, Deserialize, Debug)]
-struct CLIPImageProcessor {
+pub struct CLIPImageProcessor {
     #[serde(default = "default_size")]
     size: u32, // this is not the same as python transformer
     #[serde(default = "default_do_resize")]
@@ -66,23 +67,89 @@ fn default_image_std() -> Vec<f32> {
 }
 
 impl CLIPImageProcessor {
-    pub fn resize(&self, image: &DynamicImage) -> DynamicImage {
-        let (width, height) = image.dimensions();
-        let size = self.size as u32;
-        if width == size && height == size {
-            image.clone()
-        } else {
-            image.resize_exact(size, size, image::imageops::FilterType::CatmullRom)
-            // after test,it is the most similar one to PIL resize among resize/resize_exact/resize_to_fill
-        }
-    }
-
-    pub fn from_pretrained(clip_id: &str) -> Result<Self> {
+    pub fn from_pretrained(clip_id: &str) -> anyhow::Result<Self> {
         let api = Api::new()?;
         let api = api.model(clip_id.to_string());
         let config_filename = api.get("preprocessor_config.json")?;
         let image_processor = serde_json::from_slice(&std::fs::read(config_filename)?)?;
         Ok(image_processor)
+    }
+
+    ///shortest edge to self.resize, other edge is resized to maintain aspect ratio
+    pub fn resize(&self, image: &DynamicImage) -> DynamicImage {
+       
+        let (width, height) = image.dimensions();
+        let size = self.size as u32;
+        if width == size && height == size {
+            image.clone()
+        } else {
+            let (new_width, new_height) = if width < height {
+                (size, size * height / width)
+            } else {
+                (size * width / height, size)
+            };
+            image.resize(
+                new_width,
+                new_height,
+                image::imageops::FilterType::CatmullRom,
+            )
+        }
+    }
+
+    pub fn center_crop(&self, image: &DynamicImage) -> DynamicImage {
+        let (width, height) = image.dimensions();
+        let crop_size = self.crop_size as u32;
+        let left = (width - crop_size) / 2;
+        let top = (height - crop_size) / 2;
+        image.crop_imm(left, top, crop_size, crop_size)
+    }
+
+    pub fn to_tensor(&self, image: &DynamicImage) -> Result<Tensor> {
+        let img = image.to_rgb8().into_raw();
+        let (width, height) = image.dimensions();
+        Tensor::from_vec(img, (height as usize, width as usize, 3), &Device::Cpu)
+    }
+
+    pub fn rescale(&self, tensor: &Tensor) -> Result<Tensor> {
+        let rescale_factor = self.rescale_factor as f64;
+        tensor.affine(rescale_factor, 0.0)
+    }
+
+    pub fn normalize(&self, tensor: &Tensor) -> Result<Tensor> {
+        let image_mean = self.image_mean.clone();
+        let image_std = self.image_std.clone();
+        let mean = Tensor::from_vec(image_mean, (3,), &Device::Cpu)?;
+        let std = Tensor::from_vec(image_std, (3,), &Device::Cpu)?;
+        tensor.sub(&mean)?.div(&std)
+    }
+
+    pub fn to_channel_dimension_format(&self, tensor: &Tensor) -> Result<Tensor> {
+        tensor.permute((2, 0, 1))
+    }
+
+    pub fn preprocess(&self, image: &DynamicImage) -> Result<Tensor> {
+        let image = if self.do_resize {
+            self.resize(image)
+        } else {
+            image.clone()
+        };
+        let image = if self.do_center_crop {
+            self.center_crop(&image)
+        } else {
+            image
+        };
+        let tensor = self.to_tensor(&image)?;
+        let tensor = if self.do_rescale {
+            self.rescale(&tensor)?
+        } else {
+            tensor
+        };
+        let tensor = if self.do_normalize {
+            self.normalize(&tensor)?
+        } else {
+            tensor
+        };
+        self.to_channel_dimension_format(&tensor)
     }
 }
 
@@ -91,33 +158,26 @@ mod tests {
     use super::*;
     use image::io::Reader as ImageReader;
     use std::path::Path;
-
-    #[test]
-    fn test_from_pretrained() {
-        let clip_id = "openai/clip-vit-large-patch14-336";
-        let image_processor = CLIPImageProcessor::from_pretrained(clip_id).unwrap();
-        println!("{:?}", image_processor);
-    }
+    const CLIP_ID: &str = "openai/clip-vit-large-patch14-336";
 
     #[test]
     fn test_resize() {
         let image_path = Path::new("images/Rectangle-1.png");
         let image = ImageReader::open(image_path).unwrap().decode().unwrap();
-        let clip_image_processor = CLIPImageProcessor {
-            size: 224,
-            do_resize: true,
-            do_center_crop: true,
-            crop_size: 224,
-            do_rescale: true,
-            rescale_factor: 1.0 / 255.0,
-            do_normalize: true,
-            image_mean: vec![0.48145466, 0.4578275, 0.40821073],
-            image_std: vec![0.26862954, 0.26130258, 0.27577711],
-        };
+        let clip_image_processor = CLIPImageProcessor::from_pretrained(CLIP_ID).unwrap();
+        println!("{:?}", image.dimensions());
         let resized_image = clip_image_processor.resize(&image);
-        resized_image
-            .save("images/Rectangle-1-resized.png")
+        resized_image.save("tmp/Rectangle-1-resized.png").unwrap();
+        println!("{:?}", resized_image.dimensions());
+    }
+    #[test]
+    fn test_center_crop() {
+        let image_path = Path::new("images/llava_v1_5_radar.jpg");
+        let image = ImageReader::open(image_path).unwrap().decode().unwrap();
+        let clip_image_processor = CLIPImageProcessor::from_pretrained(CLIP_ID).unwrap();
+        let image_cropped = clip_image_processor.center_crop(&image);
+        image_cropped
+            .save("tmp/llava_v1_5_radar_cropped.jpg")
             .unwrap();
-        assert_eq!(resized_image.dimensions(), (224, 224));
     }
 }
