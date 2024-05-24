@@ -1,6 +1,8 @@
 mod clip;
 mod config;
 mod model;
+mod utils;
+mod clip_image_processor;
 
 use crate::{config::LLaVAConfig, model::LLaVA};
 use anyhow::{bail, Error as E, Result};
@@ -90,7 +92,7 @@ fn main() -> Result<()> {
     println!("{:?}", args);
     let device = candle_examples::device(args.cpu)?;
     let api = Api::new()?;
-    println!("loading model weights from {}", args.model_path);
+    println!("loading model config from {}", args.model_path);
     let api = api.model(args.model_path.clone());
     let config_filename = api.get("config.json")?;
 
