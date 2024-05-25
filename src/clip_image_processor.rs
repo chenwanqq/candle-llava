@@ -9,25 +9,25 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CLIPImageProcessor {
     #[serde(default = "default_size")]
-    size: u32, // this is not the same as python transformer
+    pub size: u32, // this is not the same as python transformer
     #[serde(default = "default_do_resize")]
-    do_resize: bool,
+    pub do_resize: bool,
 
     //resample: u32 // 3 for PIL bicubic, equivalent to rust  CatmullRom. Hence below we use CatmullRom
     #[serde(default = "default_do_center_crop")]
-    do_center_crop: bool,
+    pub do_center_crop: bool,
     #[serde(default = "default_crop_size")]
-    crop_size: u32, // this is not the same as python transformer
+    pub crop_size: u32, // this is not the same as python transformer
     #[serde(default = "default_do_rescale")]
-    do_rescale: bool,
+    pub do_rescale: bool,
     #[serde(default = "default_rescale_factor")]
-    rescale_factor: f32,
+    pub rescale_factor: f32,
     #[serde(default = "default_do_normalize")]
-    do_normalize: bool,
+    pub do_normalize: bool,
     #[serde(default = "default_image_mean")]
-    image_mean: Vec<f32>,
+    pub image_mean: Vec<f32>,
     #[serde(default = "default_image_std")]
-    image_std: Vec<f32>,
+    pub image_std: Vec<f32>,
 }
 
 fn default_size() -> u32 {
@@ -66,6 +66,22 @@ fn default_image_std() -> Vec<f32> {
     vec![0.26862954, 0.26130258, 0.27577711]
 }
 
+pub fn calculate_middle(image_size: (u32,u32),center_size: (u32,u32)) -> (u32,u32) {
+    let (width, height) = image_size;
+    let (center_width, center_height) = center_size;
+    let left = if width <= center_width {
+        0
+    } else {
+        ((width as f32 - center_width as f32) / 2.0).ceil() as u32
+    };
+    let top = if height <= center_height {
+        0
+    } else {
+        ((height as f32 - center_height as f32) / 2.0).ceil() as u32
+    };
+    (left,top)
+}
+
 impl CLIPImageProcessor {
     pub fn from_pretrained(clip_id: &str) -> anyhow::Result<Self> {
         let api = Api::new()?;
@@ -77,16 +93,17 @@ impl CLIPImageProcessor {
 
     ///shortest edge to self.resize, other edge is resized to maintain aspect ratio
     pub fn resize(&self, image: &DynamicImage) -> DynamicImage {
-       
         let (width, height) = image.dimensions();
         let size = self.size as u32;
         if width == size && height == size {
             image.clone()
         } else {
             let (new_width, new_height) = if width < height {
-                (size, size * height / width)
+                let _new_height = (((size * height) as f32)/width as f32).ceil() as u32;
+                (size, _new_height)
             } else {
-                (size * width / height, size)
+                let _new_width = (((size * width) as f32)/height as f32).ceil() as u32;
+                (_new_width, size)
             };
             image.resize(
                 new_width,
@@ -99,15 +116,14 @@ impl CLIPImageProcessor {
     pub fn center_crop(&self, image: &DynamicImage) -> DynamicImage {
         let (width, height) = image.dimensions();
         let crop_size = self.crop_size as u32;
-        let left = (width - crop_size) / 2;
-        let top = (height - crop_size) / 2;
+        let (left,top) = calculate_middle((width,height),(crop_size,crop_size));
         image.crop_imm(left, top, crop_size, crop_size)
     }
 
     pub fn to_tensor(&self, image: &DynamicImage) -> Result<Tensor> {
         let img = image.to_rgb8().into_raw();
         let (width, height) = image.dimensions();
-        Tensor::from_vec(img, (height as usize, width as usize, 3), &Device::Cpu)
+        Tensor::from_vec(img, (height as usize, width as usize, 3), &Device::Cpu)?.to_dtype(candle_core::DType::F32) // only for internal compute
     }
 
     pub fn rescale(&self, tensor: &Tensor) -> Result<Tensor> {
@@ -120,7 +136,7 @@ impl CLIPImageProcessor {
         let image_std = self.image_std.clone();
         let mean = Tensor::from_vec(image_mean, (3,), &Device::Cpu)?;
         let std = Tensor::from_vec(image_std, (3,), &Device::Cpu)?;
-        tensor.sub(&mean)?.div(&std)
+        tensor.broadcast_sub(&mean)?.broadcast_div(&std)
     }
 
     pub fn to_channel_dimension_format(&self, tensor: &Tensor) -> Result<Tensor> {
@@ -179,5 +195,13 @@ mod tests {
         image_cropped
             .save("tmp/llava_v1_5_radar_cropped.jpg")
             .unwrap();
+    }
+    #[test]
+    fn test_preprocess() {
+        let image_path = Path::new("images/llava_v1_5_radar.jpg");
+        let image = ImageReader::open(image_path).unwrap().decode().unwrap();
+        let clip_image_processor = CLIPImageProcessor::from_pretrained(CLIP_ID).unwrap();
+        let tensor = clip_image_processor.preprocess(&image).unwrap();
+        println!("{:?}", tensor.shape());
     }
 }

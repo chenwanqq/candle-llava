@@ -15,7 +15,7 @@ pub struct LLaVAConfig {
     pub hidden_size: usize,
     pub image_aspect_ratio: Option<String>,
     pub image_crop_resolution: usize,
-    pub image_grid_pinpoints: Vec<Vec<usize>>,
+    pub image_grid_pinpoints: Vec<(u32,u32)>,
     pub image_split_resolution: usize,
     pub initializer_range: f32,
     pub intermediate_size: usize,
