@@ -5,8 +5,10 @@ Still working!!!
 
 ## task
 - [x] Download the corresponding weights from Hugging Face
-- [x] Load the model weights
-   - [x] Vision tower
+
+- [x] Load the model weights and configs
+   - [x] Vision tower(CLIP, partial, only support openai/vit_large_patch14_336)
+      - [x] image processor(partial, the format of 'size' and 'crop size' not fully compatible with python transformer)
    - [x] LLM
    - [x] (partial, use python script, will use rust to replace) load of tokenizer.model
 
@@ -16,7 +18,7 @@ Still working!!!
 
 - [ ] conv template
 
-- [ ] Model structure Implementation
+- [x] Model structure Implementation
    - [x] Vision tower
    - [x] LLM
 
