@@ -33,7 +33,7 @@ Still working!!!
 - [ ] main process
    - [x] load model
    - [ ] load image
-   - [ ] load text
+   - [x] load text
    - [ ] tokenize text
    - [ ] forward
    - [ ] output

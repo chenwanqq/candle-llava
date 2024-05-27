@@ -156,6 +156,16 @@ fn divide_to_patches(image: &DynamicImage, patch_size: u32) -> Vec<DynamicImage>
     patches
 }
 
+pub fn get_model_name_from_path(model_path: &str) -> String{
+    let model_paths: Vec<String> = model_path.trim_matches('/').split('/').map(|s| s.to_string()).collect();
+    if model_paths.last().unwrap().starts_with("checkpoint-") {
+        format!("{}_{}", model_paths[model_paths.len()-2], model_paths.last().unwrap())
+    } else {
+        model_paths.last().unwrap().to_string()
+    }
+
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{clip_image_processor::CLIPImageProcessor, utils::process_anyres_image};

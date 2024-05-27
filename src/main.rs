@@ -1,11 +1,14 @@
 mod clip;
+mod clip_image_processor;
 mod config;
+mod constants;
+mod conversation;
 mod model;
 mod utils;
-mod clip_image_processor;
-mod conversation;
 
-use crate::{config::LLaVAConfig, model::LLaVA};
+use constants::*;
+
+use crate::{config::LLaVAConfig, conversation::Conversation, model::LLaVA, utils::get_model_name_from_path};
 use anyhow::{bail, Error as E, Result};
 use candle_core::{DType, Device, Tensor};
 use candle_nn::VarBuilder;
@@ -14,14 +17,13 @@ use candle_transformers::{
     models::llama::Cache,
 };
 use clap::Parser;
+use clip_image_processor::CLIPImageProcessor;
 use hf_hub::api::sync::Api;
 use image::DynamicImage;
 use std::{io::Write, process::Command};
 use tokenizers::Tokenizer;
-use clip_image_processor::CLIPImageProcessor;
 
 const EOS_TOKEN: &str = "</s>";
-const DEFAULT_PROMPT: &str = "My favorite theorem is ";
 
 #[derive(Parser, Debug)]
 #[command(author, version, about,long_about=None)]
@@ -49,8 +51,8 @@ struct Args {
     #[arg(long, action)]
     no_kv_cache: bool,
     // belows are from candle llama. Only reason is to test. Need to refactor
-    #[arg(long)]
-    prompt: Option<String>,
+    #[arg(long, default_value = "Is this a cat")]
+    prompt: String,
     /// The seed to use when generating random samples. Copy from candle llama. Not exist in python llava.
     #[arg(long, default_value_t = 299792458)]
     seed: u64,
@@ -90,9 +92,8 @@ fn load_image<T: AsRef<std::path::Path>>(
     Ok(img)
 }
 
-
 fn main() -> Result<()> {
-    let args = Args::parse();
+    let mut args = Args::parse();
     println!("{:?}", args);
     let device = candle_examples::device(args.cpu)?;
     let api = Api::new()?;
@@ -128,14 +129,61 @@ fn main() -> Result<()> {
     let vb = unsafe { VarBuilder::from_mmaped_safetensors(&weight_filenames, dtype, &device)? };
     let llava = LLaVA::load(vb, &llava_config)?;
 
-    println!("generating prompt tokens");
-    let prompt = args.prompt.as_ref().map_or(DEFAULT_PROMPT, |p| p.as_str());
-    let mut tokens = tokenizer
-        .encode(prompt, true)
-        .map_err(E::msg)?
-        .get_ids()
-        .to_vec();
-    
+    println!("generating conv template");
+    let image_token_se = format!(
+        "{}{}{}",
+        DEFAULT_IM_START_TOKEN, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_END_TOKEN
+    );
+    let qs = if args.prompt.contains(IMAGE_PLACEHOLDER) {
+        if llava_config.mm_use_im_start_end {
+            args.prompt.replace(IMAGE_PLACEHOLDER, &image_token_se)
+        } else {
+            args.prompt.replace(IMAGE_PLACEHOLDER, DEFAULT_IMAGE_TOKEN)
+        }
+    } else {
+        if llava_config.mm_use_im_start_end {
+            format!("{}\n{}", image_token_se, args.prompt)
+        } else {
+            format!("{}\n{}", DEFAULT_IMAGE_TOKEN, args.prompt)
+        }
+    };
+
+    let model_name = get_model_name_from_path(&args.model_path).to_lowercase();
+    let conv_mode = if model_name.contains("llama-2") {
+        "llava_llama_2"
+    } else if model_name.contains("mistral") {
+        "mistral_instruct"
+    } else if model_name.contains("v1.6-34b") {
+        "chatml_direct"
+    } else if model_name.contains("v1") {
+        "llava_v1"
+    } else if model_name.contains("mpt") {
+        "mpt"
+    } else {
+        "llava_v0"
+    };
+    if args.conv_mode.is_some() && args.conv_mode.as_deref() != Some(conv_mode) {
+        println!(
+            "Warning: the model is trained with {}, but you are using {}",
+            conv_mode,
+            args.conv_mode.as_deref().unwrap()
+        );
+    } else {
+        args.conv_mode = Some(conv_mode.to_string());
+    }
+
+    let mut conv  = match args.conv_mode {
+        Some(conv_mode) => match conv_mode.as_str() {
+            "chatml_direct" => Conversation::conv_chatml_direct(),
+            "llava_v1" => Conversation::conv_llava_v1(),
+            _ => todo!("not implement yet"),
+        },
+        None => bail!("conv_mode is required"),
+    };
+
+    conv.append_user_message(Some(&qs));
+    conv.append_assistant_message(None);
+    let prompt = conv.get_prompt();
 
     println!("loading image");
     //let image_processor = CLIPImageProcessor::from_pretrained(&llava_config.mm_vision_tower)?;
@@ -149,6 +197,11 @@ fn main() -> Result<()> {
 
     //based on https://github.com/huggingface/candle/blob/main/candle-examples/examples/llama/main.rs
     /*
+    let mut tokens = tokenizer
+        .encode(prompt, true)
+        .map_err(E::msg)?
+        .get_ids()
+        .to_vec();
     let mut tokenizer = candle_examples::token_output_stream::TokenOutputStream::new(tokenizer);
     println!("starting the inference loop");
     print!("{prompt}");
