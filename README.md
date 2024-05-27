@@ -18,7 +18,7 @@ Still working!!!
    - [x] 'anyres' image preprocess
    - [x] 'pad' image preprocess
 
-- [ ] conv template
+- [x] conv template (partial, only implement conv_llava_v1 and conv_chatml_direct, which is enough for LLaVA v1.6)
 
 - [x] Model structure Implementation
    - [x] Vision tower
@@ -37,7 +37,7 @@ Still working!!!
    - [ ] forward
    - [ ] output
 
-- [ ] model training (long time plan)
+- [ ] model training (long term plan)
   
 ## Tokenizer Setup  
 ```bash  

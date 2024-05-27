@@ -3,6 +3,7 @@ mod config;
 mod model;
 mod utils;
 mod clip_image_processor;
+mod conversation;
 
 use crate::{config::LLaVAConfig, model::LLaVA};
 use anyhow::{bail, Error as E, Result};
