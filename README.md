@@ -2,24 +2,31 @@
 implement llava using candle  
 
 Still working!!!
-  
-## Plan  
-  
-1. How to download the corresponding weights from Hugging Face?  
-  
-2. How to load the model weights?  
-  
-3. How to align the parameters with the Python version (initially, a partial implementation can suffice)?  
-  
-4. Model Implementation:  
-   - Vision tower (CLIP, available in candle)  
-   - LLM (available from candle)  
-  
-5. Image preprocessing  
-  
-6. Processing of input templates  
-  
-7. Combination of images and text  
+
+## task
+- [x] Download the corresponding weights from Hugging Face
+- [x] Load the model weights
+   - [x] Vision tower
+   - [x] LLM
+   - [x] (partial, use python script, will use rust to replace) load of tokenizer.model
+
+- [x] image preprocess
+   - [x] 'anyres' image preprocess
+   - [ ] 'pad' image preprocess
+
+- [ ] conv template
+
+- [ ] Model structure Implementation
+   - [x] Vision tower
+   - [x] LLM
+
+- [ ] model forward
+   - [x] Vision tower
+   - [x] LLM
+   - [ ] process of multiple images
+   - [ ] concat of image features and text features
+
+- [ ] model training (long time plan)
   
 ## Tokenizer Setup  
 ```bash  
