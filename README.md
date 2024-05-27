@@ -7,6 +7,7 @@ Still working!!!
 - [x] Download the corresponding weights from Hugging Face
 
 - [x] Load the model weights and configs
+   - [x] general llava config(need to rethink what is necessary)
    - [x] Vision tower(CLIP, partial, only support openai/vit_large_patch14_336)
       - [x] image processor(partial, the format of 'size' and 'crop size' not fully compatible with python transformer)
    - [x] LLM
@@ -28,6 +29,13 @@ Still working!!!
    - [ ] process of multiple images
    - [ ] concat of image features and text features
 
+-[ ] main process
+   - [x] load model
+   - [ ] load image
+   - [ ] load text
+   - [ ] forward
+   - [ ] output
+
 - [ ] model training (long time plan)
   
 ## Tokenizer Setup  
@@ -45,7 +53,3 @@ huggingface-cli download --resume-download liuhaotian/llava-v1.6-vicuna-7b
 * Tested only on liuhaotian/llava-v1.6-vicuna-7b
 * Downloading the tokenizer still relies on Python
 * CLIP only supports openai/vit_large_patch14_336
-* The image preprocessing process has not been implemented yet
-* Not yet supporting multiple image inputs
-* Attention mask has not been implemented
-* conv template has not been implemented
