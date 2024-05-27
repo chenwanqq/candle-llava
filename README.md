@@ -34,6 +34,7 @@ Still working!!!
    - [x] load model
    - [ ] load image
    - [ ] load text
+   - [ ] tokenize text
    - [ ] forward
    - [ ] output
 
