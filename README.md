@@ -14,8 +14,9 @@ Still working!!!
    - [x] (partial, use python script, will use rust to replace) load of tokenizer.model
 
 - [x] image preprocess
+   - [x] clip image processor
    - [x] 'anyres' image preprocess
-   - [ ] 'pad' image preprocess
+   - [x] 'pad' image preprocess
 
 - [ ] conv template
 
@@ -29,7 +30,7 @@ Still working!!!
    - [ ] process of multiple images
    - [ ] concat of image features and text features
 
--[ ] main process
+- [ ] main process
    - [x] load model
    - [ ] load image
    - [ ] load text

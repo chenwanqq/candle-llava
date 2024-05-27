@@ -6,6 +6,7 @@ use candle_core::Tensor;
 use image::imageops::overlay;
 use image::DynamicImage;
 use image::GenericImageView;
+use image::{Rgb, RgbImage};
 
 use crate::clip_image_processor::calculate_middle;
 use crate::clip_image_processor::CLIPImageProcessor;
@@ -21,10 +22,21 @@ fn process_image(
     } else if llava_config.image_aspect_ratio == Some("anyres".to_string()) {
         process_anyres_image(image, processor, &llava_config.image_grid_pinpoints)
     } else if llava_config.image_aspect_ratio == Some("pad".to_string()) {
-        todo!("pad aspect ratio not implemented")
+        process_pad_image(image, processor)
     } else {
         bail!("Invalid image aspect ratio")
     }
+}
+
+fn process_pad_image(image: &DynamicImage, processor: &CLIPImageProcessor) -> Result<Tensor> {
+    let mean_color = processor
+        .image_mean
+        .iter()
+        .map(|x| ((*x) * 255.0) as u8)
+        .collect::<Vec<u8>>();
+    let mean_color = Rgb::from([mean_color[0], mean_color[1], mean_color[2]]);
+    let image_padded = expand2square(image, mean_color);
+    processor.preprocess(&image_padded)
 }
 
 fn process_anyres_image(
@@ -47,6 +59,23 @@ fn process_anyres_image(
         .map(|patch| processor.preprocess(patch))
         .collect::<Result<Vec<Tensor>>>()?;
     Tensor::stack(&tensors, 0)
+}
+
+fn expand2square(image: &DynamicImage, background_color: Rgb<u8>) -> DynamicImage {
+    let (width, height) = image.dimensions();
+    if width == height {
+        image.clone()
+    } else if width > height {
+        let mut new_image =
+            DynamicImage::from(RgbImage::from_pixel(width, width, background_color));
+        overlay(&mut new_image, image, 0, ((width - height) / 2) as i64);
+        new_image
+    } else {
+        let mut new_image =
+            DynamicImage::from(RgbImage::from_pixel(height, height, background_color));
+        overlay(&mut new_image, image, ((height - width) / 2) as i64, 0);
+        new_image
+    }
 }
 
 fn resize_and_pad_image(image: &DynamicImage, target_resolution: (u32, u32)) -> DynamicImage {
