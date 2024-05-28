@@ -1,5 +1,8 @@
 use crate::clip::clip_vit_large_patch14_336;
+use crate::IMAGE_TOKEN_INDEX;
 use candle_core::bail;
+use candle_core::Device;
+use candle_core::IndexOp;
 use candle_core::Result;
 use candle_core::Tensor;
 use candle_nn::Module;
@@ -82,6 +85,7 @@ impl MMProjector {
 pub struct ClipVisionTower {
     model: ClipVisionTransformerWithHiddenStates,
     select_layer: isize,
+    select_feature_method: String,
 }
 
 impl ClipVisionTower {
@@ -109,15 +113,21 @@ impl ClipVisionTower {
         Ok(Self {
             model,
             select_layer,
+            select_feature_method: config.mm_vision_select_feature.clone(),
         })
     }
 
-    // todo: feature select
     pub fn forward(&self, x: &Tensor) -> Result<Tensor> {
         let result = self.model.output_hidden_states(x)?;
         println!("debug");
         let index = result.len() as isize + self.select_layer;
-        Ok(result[index as usize].clone())
+        let result = result[index as usize].clone();
+        if self.select_feature_method == "cls_patch" {
+            Ok(result)
+        } else {
+            result.i((.., 1..))
+        }
+        //Ok(result[index as usize].clone())
     }
 }
 
@@ -126,10 +136,13 @@ pub struct LLaVA {
     pub image_newline: Tensor,
     pub mm_projector: MMProjector,
     pub llama: Llama,
+    config: LLaVAConfig,
+    device: Device,
 }
 
 impl LLaVA {
     pub fn load(vb: VarBuilder, config: &LLaVAConfig) -> Result<Self> {
+        let device = vb.device().clone();
         let clip_vision_tower = ClipVisionTower::load(&vb, config)?;
         let mm_projector = MMProjector::load(&vb, config)?;
         let llama_config = config.to_llama_config();
@@ -140,17 +153,67 @@ impl LLaVA {
             image_newline,
             mm_projector,
             llama,
+            config: (*config).clone(),
+            device,
         })
     }
 
     pub fn encode_images(&self, x: &Tensor) -> Result<Tensor> {
         let image_features = self.clip_vision_tower.forward(x)?;
-        println!("after clip vision tower: image_features shape: {:?}", image_features.shape());
+        println!(
+            "after clip vision tower: image_features shape: {:?}",
+            image_features.shape()
+        );
         let image_features = self.mm_projector.forward(&image_features)?;
         Ok(image_features)
     }
+    // currently only for single image, 4 dim tensor
+    pub fn prepare_inputs_labels_for_multimodal(
+        &self,
+        input_ids: &Tensor,
+        image: &Tensor,
+    ) -> Result<Tensor> {
+        //TODO: process of multiple images/ new line
+        let image_features = self.encode_images(&image)?.flatten(0, 1)?;
+        let input_len = input_ids.shape().dims1()?;
+        //TODO: attention mask
+        println!("image_features: {:?}", image_features.shape()); //[5, 577, 4096]
+        let mut image_indices = vec![-1 as i64];
+        let input_ids_vec = input_ids.to_vec1::<i64>()?;
+        // can easily be replaced by nonzero if it is implemented in candle
+        image_indices.extend(
+            input_ids_vec
+                .iter()
+                .enumerate()
+                .filter_map(|(i, x)| {
+                    if *x == IMAGE_TOKEN_INDEX as i64 {
+                        Some(i as i64)
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<i64>>(),
+        );
+        image_indices.push(input_len as i64);
 
-    pub fn forward(&self, x: &Tensor, index_pos: usize, cache: &mut Cache) -> Result<Tensor> {
+        let input_ids_noim = input_ids_vec
+            .iter()
+            .filter_map(|x| {
+                if *x != IMAGE_TOKEN_INDEX as i64 {
+                    Some(*x)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<i64>>();
+        let input_ids_noim_len = input_ids_noim.len();
+        let input_ids_noim = Tensor::from_vec(input_ids_noim, (input_ids_noim_len), &self.device)?;
+        println!("image_indices: {:?}", image_indices);
+        todo!()
+    }
+
+    pub fn forward(&self, input_ids: &Tensor, image: &Tensor) -> Result<Tensor> {
+        let new_features = self.prepare_inputs_labels_for_multimodal(input_ids, image)?;
         todo!()
     }
 }

@@ -25,7 +25,8 @@ Still working!!!
    - [x] LLM
 
 - [ ] model forward
-   - [x] Vision tower
+   - [ ] Vision tower
+      - [ ] feature select
    - [x] LLM
    - [ ] process of multiple images
       - [ ] read multiple images

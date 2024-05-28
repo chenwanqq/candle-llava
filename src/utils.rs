@@ -243,7 +243,7 @@ pub fn tokenizer_image_token(
         input_ids.extend(x[1..].to_vec())
     }
     let input_len = input_ids.len();
-    Tensor::from_vec(input_ids, (1, input_len), &Device::Cpu)
+    Tensor::from_vec(input_ids,(input_len),&Device::Cpu)
 }
 
 #[cfg(test)]

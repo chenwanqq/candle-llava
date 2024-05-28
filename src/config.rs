@@ -1,7 +1,7 @@
 use candle_transformers::models::llama::Config;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug,Clone)]
 pub struct LLaVAConfig {
     pub _name_or_path: String,
     pub architectures: Vec<String>,

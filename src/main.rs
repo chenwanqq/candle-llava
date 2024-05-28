@@ -180,15 +180,11 @@ fn main() -> Result<()> {
     let image_tensor =
         load_image(&args.image_file, &image_processor, &llava_config, dtype)?.to_device(&device)?;
     println!("image shape: {:?}", image_tensor.shape());
-    //todo: image preprocess// multi images
-    let image_features = llava.encode_images(&image_tensor)?;
 
     // get input tokens
     let tokens =
         tokenizer_image_token(&prompt, &tokenizer, IMAGE_TOKEN_INDEX as i64, &llava_config)?;
-    println!("tokens: {}", tokens);
-    
-
+    let _ = llava.forward(&tokens, &image_tensor)?;
     //based on https://github.com/huggingface/candle/blob/main/candle-examples/examples/llama/main.rs
     /*
     let mut tokens = tokenizer
