@@ -7,8 +7,11 @@ mod model;
 mod utils;
 
 use constants::*;
+use utils::{process_image, tokenizer_image_token};
 
-use crate::{config::LLaVAConfig, conversation::Conversation, model::LLaVA, utils::get_model_name_from_path};
+use crate::{
+    config::LLaVAConfig, conversation::Conversation, model::LLaVA, utils::get_model_name_from_path,
+};
 use anyhow::{bail, Error as E, Result};
 use candle_core::{DType, Device, Tensor};
 use candle_nn::VarBuilder;
@@ -32,7 +35,7 @@ struct Args {
     model_path: String,
     #[arg(long)]
     model_base: Option<String>,
-    #[arg(long)]
+    #[arg(long, default_value = "images/llava_logo.png")]
     image_file: String, // Required
     #[arg(long)]
     conv_mode: Option<String>,
@@ -51,7 +54,7 @@ struct Args {
     #[arg(long, action)]
     no_kv_cache: bool,
     // belows are from candle llama. Only reason is to test. Need to refactor
-    #[arg(long, default_value = "Is this a cat")]
+    #[arg(long, default_value = "Is this a cat?")]
     prompt: String,
     /// The seed to use when generating random samples. Copy from candle llama. Not exist in python llava.
     #[arg(long, default_value_t = 299792458)]
@@ -70,26 +73,13 @@ struct Args {
 //from https://github.com/huggingface/candle/blob/main/candle-examples/examples/clip/main.rs
 fn load_image<T: AsRef<std::path::Path>>(
     path: T,
-    image_size: usize,
+    processor: &CLIPImageProcessor,
+    llava_config: &LLaVAConfig,
     dtype: DType,
 ) -> anyhow::Result<Tensor> {
     let img = image::io::Reader::open(path)?.decode()?;
-    let (height, width) = (image_size, image_size);
-    let img = img.resize_to_fill(
-        width as u32,
-        height as u32,
-        image::imageops::FilterType::Triangle,
-    );
-
-    let img = img.to_rgb8();
-
-    let img = img.into_raw();
-    let img = Tensor::from_vec(img, (height, width, 3), &Device::Cpu)?
-        .permute((2, 0, 1))?
-        .to_dtype(dtype)?
-        .affine(2. / 255., -1.)?;
-    // .unsqueeze(0)?;
-    Ok(img)
+    let img_tensor = process_image(&img, processor, llava_config)?;
+    Ok(img_tensor.to_dtype(dtype)?)
 }
 
 fn main() -> Result<()> {
@@ -119,8 +109,8 @@ fn main() -> Result<()> {
         .eos_token_id
         .or_else(|| tokenizer.token_to_id(EOS_TOKEN));
 
-    println!("setting kv cache");
-    let mut cache = Cache::new(!args.no_kv_cache, dtype, &llama_config, &device)?;
+    //println!("setting kv cache");
+    //let mut cache = Cache::new(!args.no_kv_cache, dtype, &llama_config, &device)?;
 
     println!("loading model weights");
 
@@ -172,7 +162,7 @@ fn main() -> Result<()> {
         args.conv_mode = Some(conv_mode.to_string());
     }
 
-    let mut conv  = match args.conv_mode {
+    let mut conv = match args.conv_mode {
         Some(conv_mode) => match conv_mode.as_str() {
             "chatml_direct" => Conversation::conv_chatml_direct(),
             "llava_v1" => Conversation::conv_llava_v1(),
@@ -184,16 +174,20 @@ fn main() -> Result<()> {
     conv.append_user_message(Some(&qs));
     conv.append_assistant_message(None);
     let prompt = conv.get_prompt();
-
+    println!("prompt: {}", prompt);
     println!("loading image");
-    //let image_processor = CLIPImageProcessor::from_pretrained(&llava_config.mm_vision_tower)?;
-    let image_tensor = load_image(&args.image_file, 336, dtype)?.unsqueeze(0)?;
+    let image_processor = CLIPImageProcessor::from_pretrained(&llava_config.mm_vision_tower)?;
+    let image_tensor =
+        load_image(&args.image_file, &image_processor, &llava_config, dtype)?.to_device(&device)?;
     println!("image shape: {:?}", image_tensor.shape());
     //todo: image preprocess// multi images
-    //let image_result = llava.clip_vision_tower.forward(&image_tensor)?;
-    //println!("image_result shape: {:?}", image_result.shape());
     let image_features = llava.encode_images(&image_tensor)?;
-    println!("image_features shape: {:?}", image_features.shape());
+
+    // get input tokens
+    let tokens =
+        tokenizer_image_token(&prompt, &tokenizer, IMAGE_TOKEN_INDEX as i64, &llava_config)?;
+    println!("tokens: {}", tokens);
+    
 
     //based on https://github.com/huggingface/candle/blob/main/candle-examples/examples/llama/main.rs
     /*

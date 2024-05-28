@@ -1,18 +1,21 @@
 use std::cmp::min;
 
 use candle_core::bail;
+use candle_core::error;
+use candle_core::Device;
 use candle_core::Result;
 use candle_core::Tensor;
 use image::imageops::overlay;
 use image::DynamicImage;
 use image::GenericImageView;
 use image::{Rgb, RgbImage};
+use tokenizers::Tokenizer;
 
 use crate::clip_image_processor::calculate_middle;
 use crate::clip_image_processor::CLIPImageProcessor;
 use crate::config::LLaVAConfig;
 
-fn process_image(
+pub fn process_image(
     image: &DynamicImage,
     processor: &CLIPImageProcessor,
     llava_config: &LLaVAConfig,
@@ -47,13 +50,15 @@ fn process_anyres_image(
     let original_size = image.dimensions();
     let best_resolution = select_best_resolution(original_size, grid_pinpoints);
     let image_padded = resize_and_pad_image(image, best_resolution);
-    let mut patches = divide_to_patches(&image_padded, processor.crop_size);
     let image_original_resize = image.resize_exact(
         processor.size as u32,
         processor.size as u32,
         image::imageops::FilterType::CatmullRom,
     );
-    patches.push(image_original_resize);
+    let mut patches = vec![image_original_resize];
+    for patch in divide_to_patches(&image_padded, processor.crop_size) {
+        patches.push(patch);
+    }
     let tensors = patches
         .iter()
         .map(|patch| processor.preprocess(patch))
@@ -156,14 +161,89 @@ fn divide_to_patches(image: &DynamicImage, patch_size: u32) -> Vec<DynamicImage>
     patches
 }
 
-pub fn get_model_name_from_path(model_path: &str) -> String{
-    let model_paths: Vec<String> = model_path.trim_matches('/').split('/').map(|s| s.to_string()).collect();
+pub fn get_model_name_from_path(model_path: &str) -> String {
+    let model_paths: Vec<String> = model_path
+        .trim_matches('/')
+        .split('/')
+        .map(|s| s.to_string())
+        .collect();
     if model_paths.last().unwrap().starts_with("checkpoint-") {
-        format!("{}_{}", model_paths[model_paths.len()-2], model_paths.last().unwrap())
+        format!(
+            "{}_{}",
+            model_paths[model_paths.len() - 2],
+            model_paths.last().unwrap()
+        )
     } else {
         model_paths.last().unwrap().to_string()
     }
+}
 
+fn duplicate_vec<T>(vec: &Vec<T>, n: usize) -> Vec<T>
+where
+    T: Clone,
+{
+    let mut res = Vec::new();
+    for _ in 0..n {
+        res.extend(vec.clone());
+    }
+    res
+}
+
+fn insert_separator<T>(X: Vec<Vec<T>>, sep: Vec<T>) -> Vec<Vec<T>>
+where
+    T: Clone,
+{
+    let sep = vec![sep];
+    let sep = duplicate_vec(&sep, X.len());
+    let mut res = X
+        .iter()
+        .zip(sep.iter())
+        .flat_map(|(x, y)| vec![x.clone(), y.clone()])
+        .collect::<Vec<Vec<T>>>();
+    res.pop();
+    res
+}
+
+pub fn tokenizer_image_token(
+    prompt: &str,
+    tokenizer: &Tokenizer,
+    image_token_index: i64,
+    llava_config: &LLaVAConfig,
+) -> Result<Tensor> {
+    let prompt_chunks = prompt
+        .split("<image>")
+        .map(|s| {
+            tokenizer
+                .encode(s, true)
+                .unwrap()
+                .get_ids()
+                .to_vec()
+                .iter()
+                .map(|x| *x as i64)
+                .collect()
+        })
+        .collect::<Vec<Vec<i64>>>();
+    println!("prompt_chunks: {:?}", prompt_chunks);
+    let mut input_ids = Vec::new();
+    let mut offset = 0;
+    if prompt_chunks.len() > 0
+        && prompt_chunks[0].len() > 0
+        && prompt_chunks[0][0] == llava_config.bos_token_id.unwrap() as i64
+    {
+        offset = 1;
+        input_ids.push(prompt_chunks[0][0]);
+    }
+
+    for x in insert_separator(
+        prompt_chunks,
+        duplicate_vec(&vec![image_token_index], offset + 1),
+    )
+    .iter()
+    {
+        input_ids.extend(x[1..].to_vec())
+    }
+    let input_len = input_ids.len();
+    Tensor::from_vec(input_ids, (1, input_len), &Device::Cpu)
 }
 
 #[cfg(test)]

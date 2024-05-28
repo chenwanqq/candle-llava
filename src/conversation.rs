@@ -96,18 +96,20 @@ impl Conversation {
                     ret.push_str(&self.sep);
                 }
                 ret
-            },
+            }
             SeparatorStyle::TWO => {
                 let seps = [self.sep.clone(), self.sep2.clone().unwrap()];
                 let mut ret = String::new();
                 ret.push_str(&self.system);
                 ret.push_str(&seps[0]);
-                for (i,(role,message)) in self.messages.iter().enumerate() {
+                for (i, (role, message)) in self.messages.iter().enumerate() {
                     ret.push_str(&role);
-                    ret.push(':');
                     if let Some(message) = message {
+                        ret.push_str(": "); // strictly follow the python implementation, otherwise it will cause some minor difference between tokens ^_^
                         ret.push_str(&message);
                         ret.push_str(&seps[i % 2]);
+                    } else {
+                        ret.push(':')
                     }
                 }
                 ret

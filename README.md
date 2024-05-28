@@ -28,15 +28,24 @@ Still working!!!
    - [x] Vision tower
    - [x] LLM
    - [ ] process of multiple images
+      - [ ] read multiple images
+      - [ ] multiple images patch process
+      - [ ] padding of multi features
    - [ ] concat of image features and text features
+   - [ ] truncate of the concat features
+   - [ ] attention mask
 
 - [ ] main process
    - [x] load model
    - [ ] load image
    - [x] load text
-   - [ ] tokenize text
+   - [x] tokenize text
    - [ ] forward
+      - [ ] single image
+      - [ ] multi images
    - [ ] output
+   - [ ] KV cache
+   - [ ] multiple steps
 
 - [ ] model training (long term plan)
   

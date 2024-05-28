@@ -115,6 +115,7 @@ impl ClipVisionTower {
     // todo: feature select
     pub fn forward(&self, x: &Tensor) -> Result<Tensor> {
         let result = self.model.output_hidden_states(x)?;
+        println!("debug");
         let index = result.len() as isize + self.select_layer;
         Ok(result[index as usize].clone())
     }
