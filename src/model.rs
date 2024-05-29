@@ -120,7 +120,6 @@ impl ClipVisionTower {
 
     pub fn forward(&self, x: &Tensor) -> Result<Tensor> {
         let result = self.model.output_hidden_states(x)?;
-        println!("debug");
         let index = result.len() as isize + self.select_layer;
         let result = result[index as usize].clone();
         if self.select_feature_method == "cls_patch" {
@@ -165,6 +164,7 @@ impl LLaVA {
             image_features.shape()
         );
         let image_features = self.mm_projector.forward(&image_features)?;
+        println!("after mm projector: image_features shape: {:?}", image_features.shape());
         Ok(image_features)
     }
     // currently only for single image, 4 dim tensor
@@ -175,6 +175,7 @@ impl LLaVA {
     ) -> Result<Tensor> {
         assert_eq!(input_ids.rank(), 2);
         //TODO: process of multiple images/ new line
+        println!("image: {:?}",image.shape());
         let image_features = self.encode_images(&image)?.flatten(0, 1)?;
         let (batch_size, input_len) = input_ids.shape().dims2()?;
         //TODO: attention mask
