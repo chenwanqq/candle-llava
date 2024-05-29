@@ -73,7 +73,6 @@ fn load_image<T: AsRef<std::path::Path>>(
 
 fn main() -> Result<()> {
     let mut args = Args::parse();
-    println!("{:?}", args);
     let device = candle_examples::device(args.cpu)?;
     let api = Api::new()?;
     println!("loading model config from {}", args.model_path);

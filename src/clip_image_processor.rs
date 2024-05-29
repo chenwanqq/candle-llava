@@ -181,10 +181,8 @@ mod tests {
         let image_path = Path::new("images/Rectangle-1.png");
         let image = ImageReader::open(image_path).unwrap().decode().unwrap();
         let clip_image_processor = CLIPImageProcessor::from_pretrained(CLIP_ID).unwrap();
-        println!("{:?}", image.dimensions());
         let resized_image = clip_image_processor.resize(&image);
         resized_image.save("tmp/Rectangle-1-resized.png").unwrap();
-        println!("{:?}", resized_image.dimensions());
     }
     #[test]
     fn test_center_crop() {

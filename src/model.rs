@@ -159,12 +159,7 @@ impl LLaVA {
 
     pub fn encode_images(&self, x: &Tensor) -> Result<Tensor> {
         let image_features = self.clip_vision_tower.forward(x)?;
-        println!(
-            "after clip vision tower: image_features shape: {:?}",
-            image_features.shape()
-        );
         let image_features = self.mm_projector.forward(&image_features)?;
-        println!("after mm projector: image_features shape: {:?}", image_features.shape());
         Ok(image_features)
     }
     // currently only for single image, 4 dim tensor
@@ -175,6 +170,7 @@ impl LLaVA {
     ) -> Result<Tensor> {
         assert_eq!(input_ids.rank(), 2);
         //TODO: process of multiple images/ new line
+        // 576来源: 336(input size)/14(patch size)=24 24*24+1(class)=577 577-1=576
         println!("image: {:?}",image.shape());
         let image_features = self.encode_images(&image)?.flatten(0, 1)?;
         let (batch_size, input_len) = input_ids.shape().dims2()?;

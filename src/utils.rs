@@ -223,7 +223,6 @@ pub fn tokenizer_image_token(
                 .collect()
         })
         .collect::<Vec<Vec<i64>>>();
-    println!("prompt_chunks: {:?}", prompt_chunks);
     let mut input_ids = Vec::new();
     let mut offset = 0;
     if prompt_chunks.len() > 0
