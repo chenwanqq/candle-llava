@@ -128,7 +128,6 @@ impl ClipVisionTower {
         } else {
             result.i((.., 1..))
         }
-        //Ok(result[index as usize].clone())
     }
 }
 

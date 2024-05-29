@@ -1,7 +1,9 @@
-# candle-lava  
-implement llava using candle  
+# candle-llava
+implement LLaVA using candle  
 
 Still working!!!
+
+Current status: now we can process single image and a prompt. Since it lacks spatial process, the result may be different from the original LLaVA.
 
 ## task
 - [x] Download the corresponding weights from Hugging Face
@@ -23,30 +25,37 @@ Still working!!!
 - [x] Model structure Implementation
    - [x] Vision tower
    - [x] LLM
+      -[x] modify of llama code
+         - [x] output embedding result
+         - [x] generate from embed tensors
 
 - [ ] model forward
-   - [ ] Vision tower
-      - [ ] feature select
+   - [x] Vision tower
+      - [x] feature select
    - [x] LLM
    - [ ] process of multiple images
       - [ ] read multiple images
       - [ ] multiple images patch process
       - [ ] padding of multi features
-   - [ ] concat of image features and text features
-   - [ ] truncate of the concat features
+   - [x] concat of image features and text features
+   - [x] truncate of the concat features
    - [ ] attention mask
 
 - [ ] main process
    - [x] load model
-   - [ ] load image
+   - [x] load image
    - [x] load text
    - [x] tokenize text
    - [ ] forward
-      - [ ] single image
+      - [x] single image
       - [ ] multi images
-   - [ ] output
-   - [ ] KV cache
+   - [x] output
+   - [x] KV cache
    - [ ] multiple steps
+
+- [ ] quantization
+   - [ ] 4-bit
+   - [ ] 8-bit
 
 - [ ] model training (long term plan)
   
