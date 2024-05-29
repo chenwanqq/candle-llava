@@ -257,7 +257,7 @@ impl LLaVA {
         Ok(new_input_embeds.unsqueeze(0)?)
     }
 
-    pub fn forward(
+    pub fn generate(
         &self,
         input_embeds: &Tensor,
         position_id: usize,

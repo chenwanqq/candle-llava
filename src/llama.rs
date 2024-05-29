@@ -317,7 +317,7 @@ impl Llama {
         index_pos: usize,
         cache: &mut Cache,
     ) -> Result<Tensor> {
-        let (_b_sz, seq_len, _) = input_embed.dims3()?;
+        let (_,seq_len,_) = input_embed.dims3()?;
         let mut x = input_embed.clone();
         for (block_idx, block) in self.blocks.iter().enumerate() {
             x = block.forward(&x, index_pos, block_idx, cache)?;

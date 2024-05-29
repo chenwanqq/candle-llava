@@ -6,6 +6,7 @@ mod conversation;
 mod llama;
 mod model;
 mod utils;
+use candle_transformers::generation::{LogitsProcessor, Sampling};
 use constants::*;
 use utils::{process_image, tokenizer_image_token};
 
@@ -14,11 +15,12 @@ use crate::{
     config::LLaVAConfig, conversation::Conversation, model::LLaVA, utils::get_model_name_from_path,
 };
 use anyhow::{bail, Error as E, Result};
-use candle_core::{DType, Tensor};
+use candle_core::{DType, IndexOp, Tensor};
 use candle_nn::VarBuilder;
 use clap::Parser;
 use clip_image_processor::CLIPImageProcessor;
 use hf_hub::api::sync::Api;
+use std::io::Write;
 use std::process::Command;
 use tokenizers::Tokenizer;
 
@@ -38,7 +40,7 @@ struct Args {
     #[arg(long, default_value_t = 0.2)]
     temperature: f32,
     #[arg(long, default_value_t = 512)]
-    max_new_tokens: u32,
+    max_new_tokens: usize,
     #[arg(long, action)]
     load_8bit: bool, // now useless
     #[arg(long, action)]
@@ -55,15 +57,6 @@ struct Args {
     /// The seed to use when generating random samples. Copy from candle llama. Not exist in python llava.
     #[arg(long, default_value_t = 299792458)]
     seed: u64,
-    /// Penalty to be applied for repeating tokens, 1. means no penalty.
-    #[arg(long, default_value_t = 1.1)]
-    repeat_penalty: f32,
-    /// The length of the sample to generate (in tokens).
-    #[arg(short = 'n', long, default_value_t = 10000)]
-    sample_len: usize,
-    /// The context size to consider for the repeat penalty.
-    #[arg(long, default_value_t = 128)]
-    repeat_last_n: usize,
 }
 
 //from https://github.com/huggingface/candle/blob/main/candle-examples/examples/clip/main.rs
@@ -177,13 +170,56 @@ fn main() -> Result<()> {
         load_image(&args.image_file, &image_processor, &llava_config, dtype)?.to_device(&device)?;
     println!("image shape: {:?}", image_tensor.shape());
 
+    let mut logits_processor = {
+        let temperature = f64::from(args.temperature);
+        let sampling = if temperature <= 0. {
+            Sampling::ArgMax
+        } else {
+            Sampling::All { temperature }
+        };
+        LogitsProcessor::from_sampling(args.seed, sampling)
+    };
+
     // get input tokens
     let tokens =
         tokenizer_image_token(&prompt, &tokenizer, IMAGE_TOKEN_INDEX as i64, &llava_config)?;
-    let input_embeds = llava.prepare_inputs_labels_for_multimodal(&tokens, &image_tensor)?;
-    
-    let logits = llava.forward(&input_embeds,0,&mut cache)?;
-    println!("logits shape: {:?}", logits.shape());
+    let mut input_embeds = llava.prepare_inputs_labels_for_multimodal(&tokens, &image_tensor)?;
+    println!("input_embeds: {:?}", input_embeds.shape());
+
+    let mut tokenizer = candle_examples::token_output_stream::TokenOutputStream::new(tokenizer);
+    let mut index_pos = 0;
+    for index in 0..args.max_new_tokens {
+        //println!("----------index: {:?}-----", index);
+        let (_, input_embeds_len, _) = input_embeds.dims3()?;
+        let (context_size, context_index) = if cache.use_kv_cache && index > 0 {
+            (1, index_pos)
+        } else {
+            (input_embeds_len, 0)
+        };
+        //println!("input_embeds: {:?}", input_embeds.shape());
+        let input = input_embeds.i((.., input_embeds_len.saturating_sub(context_size).., ..))?;
+        //println!("input: {:?}",input.shape());
+        //println!("context_index: {:?}",context_index);
+        let logits = llava.generate(&input, context_index, &mut cache)?; //[1,32000]
+                                                                         //println!("is this happened?");
+        let logits = logits.squeeze(0)?;
+        let (_, input_len, _) = input.dims3()?;
+        index_pos += input_len;
+        let next_token = logits_processor.sample(&logits)?;
+        let next_token_tensor = Tensor::from_vec(vec![next_token], 1, &device)?;
+        let next_embeds = llava.llama.embed(&next_token_tensor)?.unsqueeze(0)?;
+        input_embeds = Tensor::cat(&[input_embeds, next_embeds], 1)?;
+        if Some(next_token) == eos_token_id {
+            break;
+        }
+        if let Some(t) = tokenizer.next_token(next_token)? {
+            print!("{t}");
+            std::io::stdout().flush()?;
+        }
+    }
+    if let Some(rest) = tokenizer.decode_rest().map_err(E::msg)? {
+        print!("{rest}");
+    }
     //based on https://github.com/huggingface/candle/blob/main/candle-examples/examples/llama/main.rs
     /*
     let mut tokens = tokenizer
