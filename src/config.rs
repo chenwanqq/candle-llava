@@ -41,7 +41,7 @@ pub struct LLaVAConfig {
     pub rope_scaling: Option<f32>,
     pub rope_theta: f32,
     pub tie_word_embeddings: bool,
-    pub tokenizer_model_max_length: usize,
+    pub tokenizer_model_max_length: Option<usize>,
     pub tokenizer_padding_side: String,
     pub torch_dtype: String,
     pub transformers_version: String,

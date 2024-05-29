@@ -1,4 +1,6 @@
 use crate::clip::clip_vit_large_patch14_336;
+use crate::llama::Cache;
+use crate::llama::Llama;
 use crate::IMAGE_TOKEN_INDEX;
 use candle_core::bail;
 use candle_core::Device;
@@ -7,7 +9,6 @@ use candle_core::Result;
 use candle_core::Tensor;
 use candle_nn::Module;
 use candle_nn::{seq, Activation, Sequential, VarBuilder};
-use candle_transformers::models::llama::{Cache, Llama};
 use candle_transformers::models::with_tracing::linear;
 use regex::Regex;
 
@@ -173,29 +174,32 @@ impl LLaVA {
         input_ids: &Tensor,
         image: &Tensor,
     ) -> Result<Tensor> {
+        assert_eq!(input_ids.rank(), 2);
         //TODO: process of multiple images/ new line
         let image_features = self.encode_images(&image)?.flatten(0, 1)?;
-        let input_len = input_ids.shape().dims1()?;
+        let (batch_size, input_len) = input_ids.shape().dims2()?;
         //TODO: attention mask
-        println!("image_features: {:?}", image_features.shape()); //[5, 577, 4096]
-        let mut image_indices = vec![-1 as i64];
-        let input_ids_vec = input_ids.to_vec1::<i64>()?;
+        println!("image_features: {:?}", image_features.shape());
+        println!("input_ids: {:?}", input_ids.shape());
         // can easily be replaced by nonzero if it is implemented in candle
-        image_indices.extend(
-            input_ids_vec
-                .iter()
-                .enumerate()
-                .filter_map(|(i, x)| {
-                    if *x == IMAGE_TOKEN_INDEX as i64 {
-                        Some(i as i64)
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<i64>>(),
-        );
-        image_indices.push(input_len as i64);
-
+        let input_ids_vec = input_ids.squeeze(0)?.to_vec1::<i64>()?;
+        let mut image_indices = {
+            let mut image_indices = vec![-1 as i64];
+            image_indices.extend(
+                input_ids_vec
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, x)| {
+                        if *x == IMAGE_TOKEN_INDEX as i64 {
+                            Some(i as i64)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<i64>>(),
+            );
+            image_indices
+        };
         let input_ids_noim = input_ids_vec
             .iter()
             .filter_map(|x| {
@@ -207,13 +211,58 @@ impl LLaVA {
             })
             .collect::<Vec<i64>>();
         let input_ids_noim_len = input_ids_noim.len();
-        let input_ids_noim = Tensor::from_vec(input_ids_noim, (input_ids_noim_len), &self.device)?;
+        image_indices.push(input_ids_noim_len as i64);
+        let input_ids_noim = Tensor::from_vec(input_ids_noim, input_ids_noim_len, &self.device)?;
+        println!("input_ids_noim: {:?}", input_ids_noim.shape());
+        let cur_input_embeds = self.llama.embed(&input_ids_noim)?;
+        println!("cur_input_embeds: {:?}", cur_input_embeds.shape());
         println!("image_indices: {:?}", image_indices);
-        todo!()
+        // can be replace by split if it is implemented in candle
+        let input_embed_no_ims = {
+            let mut input_embeds = Vec::new();
+            for i in 0..image_indices.len() - 1 {
+                let start = (image_indices[i] + 1) as usize;
+                let end = image_indices[i + 1] as usize;
+                println!("start: {}, end: {}", start, end);
+                input_embeds.push(cur_input_embeds.i((start..end, ..))?)
+            }
+            input_embeds
+        };
+        println!(
+            "input_embed_no_ims: {:?} {:?}",
+            input_embed_no_ims.len(),
+            input_embed_no_ims[0].shape()
+        );
+
+        let mut cur_new_input_embeds = Vec::new();
+        //concat of text and images and text TODO: multiple images
+        cur_new_input_embeds.push(input_embed_no_ims[0].clone());
+        cur_new_input_embeds.push(image_features);
+        cur_new_input_embeds.push(input_embed_no_ims[1].clone());
+        let new_input_embeds = Tensor::cat(&cur_new_input_embeds, 0)?;
+        //trancate
+        let new_input_embeds =
+            if let Some(tokenizer_model_max_length) = self.config.tokenizer_model_max_length {
+                let (new_input_embeds_length,_) = new_input_embeds.shape().dims2()?;
+                if new_input_embeds_length > tokenizer_model_max_length {
+                    new_input_embeds.i((..tokenizer_model_max_length, ..))?
+                } else {
+                    new_input_embeds
+                }
+            } else {
+                new_input_embeds
+            };
+        println!("new_input_embeds: {:?}", new_input_embeds.shape());
+        //TODO: padding multiple tokens
+        Ok(new_input_embeds.unsqueeze(0)?)
     }
 
-    pub fn forward(&self, input_ids: &Tensor, image: &Tensor) -> Result<Tensor> {
-        let new_features = self.prepare_inputs_labels_for_multimodal(input_ids, image)?;
-        todo!()
+    pub fn forward(
+        &self,
+        input_embeds: &Tensor,
+        position_id: usize,
+        cache: &mut Cache,
+    ) -> Result<Tensor> {
+        self.llama.generate(&input_embeds, position_id, cache)
     }
 }

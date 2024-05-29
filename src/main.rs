@@ -3,27 +3,23 @@ mod clip_image_processor;
 mod config;
 mod constants;
 mod conversation;
+mod llama;
 mod model;
 mod utils;
-
 use constants::*;
 use utils::{process_image, tokenizer_image_token};
 
+use crate::llama::Cache;
 use crate::{
     config::LLaVAConfig, conversation::Conversation, model::LLaVA, utils::get_model_name_from_path,
 };
 use anyhow::{bail, Error as E, Result};
-use candle_core::{DType, Device, Tensor};
+use candle_core::{DType, Tensor};
 use candle_nn::VarBuilder;
-use candle_transformers::{
-    generation::{LogitsProcessor, Sampling},
-    models::llama::Cache,
-};
 use clap::Parser;
 use clip_image_processor::CLIPImageProcessor;
 use hf_hub::api::sync::Api;
-use image::DynamicImage;
-use std::{io::Write, process::Command};
+use std::process::Command;
 use tokenizers::Tokenizer;
 
 const EOS_TOKEN: &str = "</s>";
@@ -109,8 +105,8 @@ fn main() -> Result<()> {
         .eos_token_id
         .or_else(|| tokenizer.token_to_id(EOS_TOKEN));
 
-    //println!("setting kv cache");
-    //let mut cache = Cache::new(!args.no_kv_cache, dtype, &llama_config, &device)?;
+    println!("setting kv cache");
+    let mut cache = Cache::new(!args.no_kv_cache, dtype, &llama_config, &device)?;
 
     println!("loading model weights");
 
@@ -184,7 +180,10 @@ fn main() -> Result<()> {
     // get input tokens
     let tokens =
         tokenizer_image_token(&prompt, &tokenizer, IMAGE_TOKEN_INDEX as i64, &llava_config)?;
-    let _ = llava.forward(&tokens, &image_tensor)?;
+    let input_embeds = llava.prepare_inputs_labels_for_multimodal(&tokens, &image_tensor)?;
+    
+    let logits = llava.forward(&input_embeds,0,&mut cache)?;
+    println!("logits shape: {:?}", logits.shape());
     //based on https://github.com/huggingface/candle/blob/main/candle-examples/examples/llama/main.rs
     /*
     let mut tokens = tokenizer
