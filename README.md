@@ -35,8 +35,7 @@ Current status: now we can process single image and a prompt. Since it lacks spa
    - [x] LLM
    - [ ] process of multiple images
       - [ ] read multiple images
-      - [ ] multiple images patch process
-      - [ ] padding of multi features
+      - [x] multiple images patch process
    - [x] concat of image features and text features
    - [x] truncate of the concat features
    - [ ] attention mask

@@ -65,10 +65,10 @@ fn load_image<T: AsRef<std::path::Path>>(
     processor: &CLIPImageProcessor,
     llava_config: &LLaVAConfig,
     dtype: DType,
-) -> anyhow::Result<Tensor> {
+) -> anyhow::Result<((u32, u32), Tensor)> {
     let img = image::io::Reader::open(path)?.decode()?;
     let img_tensor = process_image(&img, processor, llava_config)?;
-    Ok(img_tensor.to_dtype(dtype)?)
+    Ok(((img.width(), img.height()), img_tensor.to_dtype(dtype)?))
 }
 
 fn main() -> Result<()> {
@@ -164,8 +164,9 @@ fn main() -> Result<()> {
     println!("prompt: {}", prompt);
     println!("loading image");
     let image_processor = CLIPImageProcessor::from_pretrained(&llava_config.mm_vision_tower)?;
-    let image_tensor =
-        load_image(&args.image_file, &image_processor, &llava_config, dtype)?.to_device(&device)?;
+    let (image_size, image_tensor) =
+        load_image(&args.image_file, &image_processor, &llava_config, dtype)?;
+    let image_tensor = image_tensor.to_device(&device)?;
     println!("image shape: {:?}", image_tensor.shape());
 
     let mut logits_processor = {
@@ -181,7 +182,11 @@ fn main() -> Result<()> {
     // get input tokens
     let tokens =
         tokenizer_image_token(&prompt, &tokenizer, IMAGE_TOKEN_INDEX as i64, &llava_config)?;
-    let mut input_embeds = llava.prepare_inputs_labels_for_multimodal(&tokens, &image_tensor)?;
+    let mut input_embeds = llava.prepare_inputs_labels_for_multimodal(
+        &tokens,
+        &vec![image_tensor],
+        &vec![image_size],
+    )?;
     println!("input_embeds: {:?}", input_embeds.shape());
     //inference loop, based on https://github.com/huggingface/candle/blob/main/candle-examples/examples/llama/main.rs
     let mut tokenizer = candle_examples::token_output_stream::TokenOutputStream::new(tokenizer);

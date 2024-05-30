@@ -20,15 +20,24 @@ pub fn process_image(
     processor: &CLIPImageProcessor,
     llava_config: &LLaVAConfig,
 ) -> candle_core::Result<Tensor> {
-    if llava_config.image_aspect_ratio == None {
+    if llava_config.image_aspect_ratio == "square".to_string() {
         return processor.preprocess(image);
-    } else if llava_config.image_aspect_ratio == Some("anyres".to_string()) {
+    } else if llava_config.image_aspect_ratio == "anyres".to_string() {
         process_anyres_image(image, processor, &llava_config.image_grid_pinpoints)
-    } else if llava_config.image_aspect_ratio == Some("pad".to_string()) {
+    } else if llava_config.image_aspect_ratio == "pad".to_string() {
         process_pad_image(image, processor)
     } else {
         bail!("Invalid image aspect ratio")
     }
+}
+
+pub fn get_anyres_image_grid_shape(
+    image_size: (u32, u32),
+    grid_pinpoints: &[(u32, u32)],
+    patch_size: u32,
+) -> (u32, u32) {
+    let (width, height) = select_best_resolution(image_size, grid_pinpoints);
+    (width / patch_size, height / patch_size)
 }
 
 fn process_pad_image(image: &DynamicImage, processor: &CLIPImageProcessor) -> Result<Tensor> {
@@ -242,7 +251,7 @@ pub fn tokenizer_image_token(
         input_ids.extend(x[1..].to_vec())
     }
     let input_len = input_ids.len();
-    Tensor::from_vec(input_ids,(1,input_len),&Device::Cpu)
+    Tensor::from_vec(input_ids, (1, input_len), &Device::Cpu)
 }
 
 #[cfg(test)]
