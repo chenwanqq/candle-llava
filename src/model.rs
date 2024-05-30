@@ -168,7 +168,6 @@ impl LLaVA {
         input_ids: &Tensor,
         image: &Tensor,
     ) -> Result<Tensor> {
-        assert_eq!(input_ids.rank(), 2);
         //TODO: process of multiple images/ new line
         // 576来源: 336(input size)/14(patch size)=24 24*24+1(class)=577 577-1=576
         println!("image: {:?}",image.shape());

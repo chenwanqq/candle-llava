@@ -75,7 +75,6 @@ fn main() -> Result<()> {
     let mut args = Args::parse();
     let device = candle_examples::device(args.cpu)?;
     let api = Api::new()?;
-    println!("loading model config from {}", args.model_path);
     let api = api.model(args.model_path.clone());
     let config_filename = api.get("config.json")?;
 
@@ -90,7 +89,7 @@ fn main() -> Result<()> {
         "use python to generate tokenizer.json. Will save tokenizer to tokenizer/tokenizer.json"
     );
     let output = Command::new("python").args(["-c","from transformers import AutoTokenizer;tokenizer=AutoTokenizer.from_pretrained('liuhaotian/llava-v1.6-vicuna-7b');tokenizer.save_pretrained('tokenizer')"]).output().expect("python error!");
-    println!("output: {:?}", output);
+    println!("python output: {:?}", output);
     println!("loading tokenizer from tokenizer/tokenizer.json");
     let tokenizer = Tokenizer::from_file("tokenizer/tokenizer.json").map_err(E::msg)?;
     let eos_token_id = llava_config
@@ -184,21 +183,17 @@ fn main() -> Result<()> {
         tokenizer_image_token(&prompt, &tokenizer, IMAGE_TOKEN_INDEX as i64, &llava_config)?;
     let mut input_embeds = llava.prepare_inputs_labels_for_multimodal(&tokens, &image_tensor)?;
     println!("input_embeds: {:?}", input_embeds.shape());
-
+    //inference loop, based on https://github.com/huggingface/candle/blob/main/candle-examples/examples/llama/main.rs
     let mut tokenizer = candle_examples::token_output_stream::TokenOutputStream::new(tokenizer);
     let mut index_pos = 0;
     for index in 0..args.max_new_tokens {
-        //println!("----------index: {:?}-----", index);
         let (_, input_embeds_len, _) = input_embeds.dims3()?;
         let (context_size, context_index) = if cache.use_kv_cache && index > 0 {
             (1, index_pos)
         } else {
             (input_embeds_len, 0)
         };
-        //println!("input_embeds: {:?}", input_embeds.shape());
         let input = input_embeds.i((.., input_embeds_len.saturating_sub(context_size).., ..))?;
-        //println!("input: {:?}",input.shape());
-        //println!("context_index: {:?}",context_index);
         let logits = llava.generate(&input, context_index, &mut cache)?; //[1,32000]
                                                                          //println!("is this happened?");
         let logits = logits.squeeze(0)?;
@@ -219,76 +214,6 @@ fn main() -> Result<()> {
     if let Some(rest) = tokenizer.decode_rest().map_err(E::msg)? {
         print!("{rest}");
     }
-    //based on https://github.com/huggingface/candle/blob/main/candle-examples/examples/llama/main.rs
-    /*
-    let mut tokens = tokenizer
-        .encode(prompt, true)
-        .map_err(E::msg)?
-        .get_ids()
-        .to_vec();
-    let mut tokenizer = candle_examples::token_output_stream::TokenOutputStream::new(tokenizer);
-    println!("starting the inference loop");
-    print!("{prompt}");
-    let mut logits_processor = {
-        let temperature = f64::from(args.temperature);
-        let sampling = if temperature <= 0. {
-            Sampling::ArgMax
-        } else {
-            Sampling::All { temperature }
-        };
-        LogitsProcessor::from_sampling(args.seed, sampling)
-    };
-
-    let mut start_gen = std::time::Instant::now();
-    let mut index_pos = 0;
-    let mut token_generated = 0;
-    for index in 0..args.sample_len {
-        let (context_size, context_index) = if cache.use_kv_cache && index > 0 {
-            (1, index_pos)
-        } else {
-            (tokens.len(), 0)
-        };
-        if index == 1 {
-            start_gen = std::time::Instant::now()
-        }
-        let ctxt = &tokens[tokens.len().saturating_sub(context_size)..];
-        let input = Tensor::new(ctxt, &device)?.unsqueeze(0)?;
-        let logits = llava.forward(&input, context_index, &mut cache)?;
-        let logits = logits.squeeze(0)?;
-        let logits = if args.repeat_penalty == 1. {
-            logits
-        } else {
-            let start_at = tokens.len().saturating_sub(args.repeat_last_n);
-            candle_transformers::utils::apply_repeat_penalty(
-                &logits,
-                args.repeat_penalty,
-                &tokens[start_at..],
-            )?
-        };
-        index_pos += ctxt.len();
-
-        let next_token = logits_processor.sample(&logits)?;
-        token_generated += 1;
-        tokens.push(next_token);
-
-        if Some(next_token) == eos_token_id {
-            break;
-        }
-        if let Some(t) = tokenizer.next_token(next_token)? {
-            print!("{t}");
-            std::io::stdout().flush()?;
-        }
-    }
-    if let Some(rest) = tokenizer.decode_rest().map_err(E::msg)? {
-        print!("{rest}");
-    }
-    let dt = start_gen.elapsed();
-    println!(
-        "\n\n{} tokens generated ({} token/s)\n",
-        token_generated,
-        (token_generated - 1) as f64 / dt.as_secs_f64(),
-    );
-    */
 
     Ok(())
 }

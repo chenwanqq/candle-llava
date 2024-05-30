@@ -52,12 +52,19 @@ Current status: now we can process single image and a prompt. Since it lacks spa
    - [x] output
    - [x] KV cache
    - [ ] multiple steps
+   - [ ] (long term) web?
 
 - [ ] quantization
    - [ ] 4-bit
    - [ ] 8-bit
 
-- [ ] model training (long term plan)
+- [ ] (long term)  Expand candle operators, including:
+   - [ ] split
+   - [ ] nonzero
+   - [ ] where
+
+- [ ] (optional) memory optimization for LLaVA 1.6 version
+- [ ] (long term)model training 
   
 ## Tokenizer Setup  
 ```bash  
