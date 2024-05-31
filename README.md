@@ -76,9 +76,14 @@ cargo run --bin multi_images -- --image-files "images/llava_v1_5_radar.jpg" --im
    - [ ] nonzero
    - [ ] where
 
+- [ ] LoRA
 - [ ] More config support. Now we only support llava-v1.6
+- [ ] contribution to other projects
+   - [ ] [huggingface/candle](https://github.com/huggingface/candle)
+   - [ ] [EricLBuehler/mistral.rs](https://github.com/EricLBuehler/mistral.rs)
 - [ ] (optional) memory optimization for LLaVA 1.6 version
 - [ ] (long term)model training 
+
   
 ## Tokenizer Setup  
 ```bash  
