@@ -1,7 +1,7 @@
 use candle_transformers::models::llama::Config;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug,Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LLaVAConfig {
     pub _name_or_path: String,
     pub architectures: Vec<String>,
@@ -13,14 +13,16 @@ pub struct LLaVAConfig {
     pub freeze_mm_vision_resampler: bool,
     pub hidden_act: String,
     pub hidden_size: usize,
-    pub image_aspect_ratio: Option<String>,
+    #[serde(default = "default_image_aspect_ratio")]
+    pub image_aspect_ratio: String,
     pub image_crop_resolution: usize,
-    pub image_grid_pinpoints: Vec<(u32,u32)>,
+    pub image_grid_pinpoints: Vec<(u32, u32)>,
     pub image_split_resolution: usize,
     pub initializer_range: f32,
     pub intermediate_size: usize,
     pub max_position_embeddings: usize,
     pub mm_hidden_size: usize,
+    #[serde(default = "default_mm_patch_merge_type")]
     pub mm_patch_merge_type: String,
     pub mm_projector_lr: Option<f32>,
     pub mm_projector_type: String,
@@ -51,6 +53,14 @@ pub struct LLaVAConfig {
     pub use_cache: bool,
     pub use_mm_proj: bool,
     pub vocab_size: usize,
+}
+
+fn default_mm_patch_merge_type() -> String {
+    "flat".to_string()
+}
+
+fn default_image_aspect_ratio() -> String {
+    "square".to_string()
 }
 impl LLaVAConfig {
     pub fn to_llama_config(&self) -> Config {

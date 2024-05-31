@@ -63,10 +63,10 @@ fn default_image_mean() -> Vec<f32> {
 }
 
 fn default_image_std() -> Vec<f32> {
-    vec![0.26862954, 0.26130258, 0.27577711]
+    vec![0.26862954, 0.2613026, 0.2757771]
 }
 
-pub fn calculate_middle(image_size: (u32,u32),center_size: (u32,u32)) -> (u32,u32) {
+pub fn calculate_middle(image_size: (u32, u32), center_size: (u32, u32)) -> (u32, u32) {
     let (width, height) = image_size;
     let (center_width, center_height) = center_size;
     let left = if width <= center_width {
@@ -79,7 +79,7 @@ pub fn calculate_middle(image_size: (u32,u32),center_size: (u32,u32)) -> (u32,u3
     } else {
         ((height as f32 - center_height as f32) / 2.0).ceil() as u32
     };
-    (left,top)
+    (left, top)
 }
 
 impl CLIPImageProcessor {
@@ -94,15 +94,15 @@ impl CLIPImageProcessor {
     ///shortest edge to self.resize, other edge is resized to maintain aspect ratio
     pub fn resize(&self, image: &DynamicImage) -> DynamicImage {
         let (width, height) = image.dimensions();
-        let size = self.size as u32;
+        let size = self.size;
         if width == size && height == size {
             image.clone()
         } else {
             let (new_width, new_height) = if width < height {
-                let _new_height = (((size * height) as f32)/width as f32).ceil() as u32;
+                let _new_height = (((size * height) as f32) / width as f32).ceil() as u32;
                 (size, _new_height)
             } else {
-                let _new_width = (((size * width) as f32)/height as f32).ceil() as u32;
+                let _new_width = (((size * width) as f32) / height as f32).ceil() as u32;
                 (_new_width, size)
             };
             image.resize(
@@ -115,15 +115,16 @@ impl CLIPImageProcessor {
 
     pub fn center_crop(&self, image: &DynamicImage) -> DynamicImage {
         let (width, height) = image.dimensions();
-        let crop_size = self.crop_size as u32;
-        let (left,top) = calculate_middle((width,height),(crop_size,crop_size));
+        let crop_size = self.crop_size;
+        let (left, top) = calculate_middle((width, height), (crop_size, crop_size));
         image.crop_imm(left, top, crop_size, crop_size)
     }
 
     pub fn to_tensor(&self, image: &DynamicImage) -> Result<Tensor> {
         let img = image.to_rgb8().into_raw();
         let (width, height) = image.dimensions();
-        Tensor::from_vec(img, (height as usize, width as usize, 3), &Device::Cpu)?.to_dtype(candle_core::DType::F32) // only for internal compute
+        Tensor::from_vec(img, (height as usize, width as usize, 3), &Device::Cpu)?
+            .to_dtype(candle_core::DType::F32) // only for internal compute
     }
 
     pub fn rescale(&self, tensor: &Tensor) -> Result<Tensor> {

@@ -292,7 +292,7 @@ impl Module for ClipVisionTransformerWithHiddenStates {
         // https://github.com/huggingface/transformers/blob/f6fa0f0bf0796ac66f201f23bdb8585de1609add/src/transformers/models/clip/modeling_clip.py#L787
         // pooled_output = encoder_outputs[:, 0, :]
         let pooled_output = encoder_outputs.i((.., 0, ..))?;
-        Ok(self.final_layer_norm.forward(&pooled_output)?)
+        self.final_layer_norm.forward(&pooled_output)
     }
 }
 
