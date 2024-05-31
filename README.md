@@ -40,7 +40,7 @@ cargo run --bin multi_images -- --image-files "images/llava_v1_5_radar.jpg" --im
 - [x] Model structure Implementation
    - [x] Vision tower
    - [x] LLM
-      -[x] modify of llama code
+      - [x] modify of llama code
          - [x] output embedding result
          - [x] generate from embed tensors
 
