@@ -10,7 +10,7 @@ Status: tested on llava-v1.6-vicuna-7b
 ### single-image
 ```bash
 cargo run --bin single_image # default args, use llava-v1.6-vicuna-7b, default-image is image/llava_logo.png, prompt is "is this a cat?"
-cargo run --bin single_image -- --image-file "image/llava_v1_5_radar.jpg" --prompt "what does this picture show?"
+cargo run --bin single_image -- --image-file "images/llava_v1_5_radar.jpg" --prompt "what does this picture show?"
 ```
 
 ### multi-image
