@@ -177,11 +177,8 @@ fn main() -> Result<()> {
     // get input tokens
     let tokens =
         tokenizer_image_token(&prompt, &tokenizer, IMAGE_TOKEN_INDEX as i64, &llava_config)?;
-    let input_embeds = llava.prepare_inputs_labels_for_multimodal(
-        &tokens,
-        &[image_tensor],
-        &[image_size],
-    )?;
+    let input_embeds =
+        llava.prepare_inputs_labels_for_multimodal(&tokens, &[image_tensor], &[image_size])?;
     //inference loop, based on https://github.com/huggingface/candle/blob/main/candle-examples/examples/llama/main.rs
     let mut tokenizer = candle_examples::token_output_stream::TokenOutputStream::new(tokenizer);
     let mut index_pos = 0;

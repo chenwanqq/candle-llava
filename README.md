@@ -1,9 +1,24 @@
 # candle-llava
 implement LLaVA using candle  
 
-Still working!!!
+##
 
-Current status: now we can process single image and a prompt. Since it lacks spatial process, the result may be different from the original LLaVA.
+Status: tested on llava-v1.6-vicuna-7b
+
+## eval
+
+### single-image
+```bash
+cargo run --bin single_image # default args, use llava-v1.6-vicuna-7b, default-image is image/llava_logo.png, prompt is "is this a cat?"
+cargo run --bin single_image -- --image_file "image/llava_v1_5_radar.jpg" --prompt "what does this picture show?"
+```
+
+### multi-image
+
+**warning**: In LLaVA-v1.6, one image can take nearly 3000 tokens, hence multi-images is nearly inpractical.(Default max tokens is 4096)
+```bash
+cargo run --bin multi_images -- --image-files "images/llava_v1_5_radar.jpg" --image-files "images/llava_example_cmp.png"  --prompt  "what are the common things in these pictures?" #this is also the default args
+```
 
 ## task
 - [x] Download the corresponding weights from Hugging Face
@@ -29,28 +44,27 @@ Current status: now we can process single image and a prompt. Since it lacks spa
          - [x] output embedding result
          - [x] generate from embed tensors
 
-- [ ] model forward
+- [x] model forward
    - [x] Vision tower
       - [x] feature select
    - [x] LLM
-   - [ ] process of multiple images
-      - [ ] read multiple images
+   - [x] process of multiple images
+      - [x] read multiple images
       - [x] multiple images patch process
    - [x] concat of image features and text features
    - [x] truncate of the concat features
-   - [ ] attention mask
 
 - [ ] main process
    - [x] load model
    - [x] load image
    - [x] load text
    - [x] tokenize text
-   - [ ] forward
+   - [x] forward
       - [x] single image
-      - [ ] multi images
+      - [x] multi images
    - [x] output
    - [x] KV cache
-   - [ ] multiple steps
+   - [ ] conversation mode
    - [ ] (long term) web?
 
 - [ ] quantization
@@ -62,6 +76,7 @@ Current status: now we can process single image and a prompt. Since it lacks spa
    - [ ] nonzero
    - [ ] where
 
+- [ ] More config support. Now we only support llava-v1.6
 - [ ] (optional) memory optimization for LLaVA 1.6 version
 - [ ] (long term)model training 
   
