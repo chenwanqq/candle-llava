@@ -1,7 +1,7 @@
 use candle_transformers::models::llama::Config;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug,Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LLaVAConfig {
     pub _name_or_path: String,
     pub architectures: Vec<String>,
@@ -16,7 +16,7 @@ pub struct LLaVAConfig {
     #[serde(default = "default_image_aspect_ratio")]
     pub image_aspect_ratio: String,
     pub image_crop_resolution: usize,
-    pub image_grid_pinpoints: Vec<(u32,u32)>,
+    pub image_grid_pinpoints: Vec<(u32, u32)>,
     pub image_split_resolution: usize,
     pub initializer_range: f32,
     pub intermediate_size: usize,

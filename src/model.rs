@@ -197,8 +197,8 @@ impl LLaVA {
     pub fn prepare_inputs_labels_for_multimodal(
         &self,
         input_ids: &Tensor,
-        images: &Vec<Tensor>,
-        image_sizes: &Vec<(u32, u32)>,
+        images: &[Tensor],
+        image_sizes: &[(u32, u32)],
     ) -> Result<Tensor> {
         //TODO: process of multiple images/ new line
         // 576: 336(input size)/14(patch size)=24 24*24+1(class)=577 577-1=576
@@ -213,14 +213,11 @@ impl LLaVA {
         let mut image_features = Vec::new();
         for split_size in split_sizes.iter() {
             image_features.push(image_features_together.i(index_pos..index_pos + (*split_size))?);
+            index_pos += *split_size;
         }
-        println!(
-            "image_features: {:?} {:?}",
-            image_features.len(),
-            image_features[0].shape()
-        );
         let mm_patch_merge_type = &self.config.mm_patch_merge_type;
         let image_aspect_ratio = &self.config.image_aspect_ratio;
+
         let image_features = if mm_patch_merge_type == "flat" {
             image_features
                 .iter()
@@ -242,7 +239,6 @@ impl LLaVA {
                             &self.config.image_grid_pinpoints,
                             self.clip_vision_tower.config.image_size as u32,
                         );
-                        println!("num_patch_width: {}, num_patch_height: {}", num_patch_width, num_patch_height);
                         patch_image_feature.reshape((
                             num_patch_height as usize,
                             num_patch_width as usize,
@@ -254,29 +250,30 @@ impl LLaVA {
                         todo!("not implemented in original python LLaVA yet")
                     };
                     let new_image_feature = if mm_patch_merge_type.contains("unpad") {
-                        println!("before transform new_image_feature.shape {:?}",new_image_feature.shape());
                         let new_image_feature = new_image_feature
                             .permute((4, 0, 2, 1, 3))?
                             .flatten(1, 2)?
                             .flatten(2, 3)?;
-                        println!("before unpad new_image_feature.shape: {:?}",new_image_feature.shape());
                         let new_image_feature = unpad_image(&new_image_feature, &image_size)?;
-                        println!("before cat new_image_feature.shape: {:?}",new_image_feature.shape());
                         let new_image_feature_dims = new_image_feature.dims();
                         let image_new_line = self
                             .image_newline
                             .reshape((self.config.hidden_size, 1, 1))?
-                            .broadcast_as((new_image_feature_dims[0], new_image_feature_dims[1], 1))?;
+                            .broadcast_as((
+                                new_image_feature_dims[0],
+                                new_image_feature_dims[1],
+                                1,
+                            ))?;
                         let new_image_feature =
                             Tensor::cat(&[new_image_feature, image_new_line], 2)?;
                         new_image_feature.flatten(1, 2)?.transpose(0, 1)?
                     } else {
                         new_image_feature.permute((0, 2, 1, 3, 4))?.flatten(0, 3)?
                     };
-                    Tensor::cat(&[base_image_feature,new_image_feature],0)?
+                    Tensor::cat(&[base_image_feature, new_image_feature], 0)?
                 } else {
                     let new_image_feature = image_feature.get(0).unwrap();
-                    let new_image_feature = if mm_patch_merge_type.contains("unpad") {
+                    if mm_patch_merge_type.contains("unpad") {
                         Tensor::cat(
                             &[
                                 new_image_feature,
@@ -287,8 +284,7 @@ impl LLaVA {
                         .unwrap()
                     } else {
                         new_image_feature
-                    };
-                    new_image_feature
+                    }
                 };
                 new_image_features.push(new_image_feature);
             }
@@ -296,21 +292,10 @@ impl LLaVA {
         } else {
             bail!("Unexpected mm_patch_merge_type: {mm_patch_merge_type}")
         };
-        println!(
-            "image_features: {:?} {:?}",
-            image_features.len(),
-            image_features[0].shape()
-        );
-        todo!()
-        /*
-        let (batch_size, input_len) = input_ids.shape().dims2()?;
-        //TODO: attention mask
-        println!("image_features: {:?}", image_features.shape());
-        println!("input_ids: {:?}", input_ids.shape());
         // can easily be replaced by nonzero if it is implemented in candle
         let input_ids_vec = input_ids.squeeze(0)?.to_vec1::<i64>()?;
         let mut image_indices = {
-            let mut image_indices = vec![-1 as i64];
+            let mut image_indices = vec![0_i64];
             image_indices.extend(
                 input_ids_vec
                     .iter()
@@ -326,6 +311,11 @@ impl LLaVA {
             );
             image_indices
         };
+        if image_indices.len() == 1 {
+            //no image, only [0],
+            return self.llama.embed(input_ids);
+        }
+
         let input_ids_noim = input_ids_vec
             .iter()
             .filter_map(|x| {
@@ -337,39 +327,31 @@ impl LLaVA {
             })
             .collect::<Vec<i64>>();
         let input_ids_noim_len = input_ids_noim.len();
-        image_indices.push(input_ids_noim_len as i64);
+        image_indices.push((input_ids_noim_len) as i64);
         let input_ids_noim = Tensor::from_vec(input_ids_noim, input_ids_noim_len, &self.device)?;
-        println!("input_ids_noim: {:?}", input_ids_noim.shape());
         let cur_input_embeds = self.llama.embed(&input_ids_noim)?;
-        println!("cur_input_embeds: {:?}", cur_input_embeds.shape());
-        println!("image_indices: {:?}", image_indices);
         // can be replace by split if it is implemented in candle
         let input_embed_no_ims = {
             let mut input_embeds = Vec::new();
             for i in 0..image_indices.len() - 1 {
-                let start = (image_indices[i] + 1) as usize;
+                let start = (image_indices[i]) as usize;
                 let end = image_indices[i + 1] as usize;
-                println!("start: {}, end: {}", start, end);
                 input_embeds.push(cur_input_embeds.i((start..end, ..))?)
             }
             input_embeds
         };
-        println!(
-            "input_embed_no_ims: {:?} {:?}",
-            input_embed_no_ims.len(),
-            input_embed_no_ims[0].shape()
-        );
 
         let mut cur_new_input_embeds = Vec::new();
-        //concat of text and images and text TODO: multiple images
-        cur_new_input_embeds.push(input_embed_no_ims[0].clone());
-        cur_new_input_embeds.push(image_features);
-        cur_new_input_embeds.push(input_embed_no_ims[1].clone());
+        for (i, image_feature) in image_features.iter().enumerate() {
+            cur_new_input_embeds.push(input_embed_no_ims[i].clone());
+            cur_new_input_embeds.push(image_feature.clone());
+        }
+        cur_new_input_embeds.push(input_embed_no_ims[image_features.len()].clone());
         let new_input_embeds = Tensor::cat(&cur_new_input_embeds, 0)?;
         //trancate
         let new_input_embeds =
             if let Some(tokenizer_model_max_length) = self.config.tokenizer_model_max_length {
-                let (new_input_embeds_length,_) = new_input_embeds.shape().dims2()?;
+                let (new_input_embeds_length, _) = new_input_embeds.shape().dims2()?;
                 if new_input_embeds_length > tokenizer_model_max_length {
                     new_input_embeds.i((..tokenizer_model_max_length, ..))?
                 } else {
@@ -378,18 +360,16 @@ impl LLaVA {
             } else {
                 new_input_embeds
             };
-        println!("new_input_embeds: {:?}", new_input_embeds.shape());
-        //TODO: padding multiple tokens
-        Ok(new_input_embeds.unsqueeze(0)?)
-        */
+        new_input_embeds.unsqueeze(0)
     }
 
-    pub fn generate(
+    pub fn forward(
         &self,
         input_embeds: &Tensor,
         position_id: usize,
         cache: &mut Cache,
     ) -> Result<Tensor> {
-        self.llama.generate(&input_embeds, position_id, cache)
+        self.llama
+            .forward_input_embed(input_embeds, position_id, cache)
     }
 }

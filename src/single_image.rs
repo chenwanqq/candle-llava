@@ -117,12 +117,10 @@ fn main() -> Result<()> {
         } else {
             args.prompt.replace(IMAGE_PLACEHOLDER, DEFAULT_IMAGE_TOKEN)
         }
+    } else if llava_config.mm_use_im_start_end {
+        format!("{}\n{}", image_token_se, args.prompt)
     } else {
-        if llava_config.mm_use_im_start_end {
-            format!("{}\n{}", image_token_se, args.prompt)
-        } else {
-            format!("{}\n{}", DEFAULT_IMAGE_TOKEN, args.prompt)
-        }
+        format!("{}\n{}", DEFAULT_IMAGE_TOKEN, args.prompt)
     };
 
     let model_name = get_model_name_from_path(&args.model_path).to_lowercase();
@@ -157,17 +155,14 @@ fn main() -> Result<()> {
         },
         None => bail!("conv_mode is required"),
     };
-
     conv.append_user_message(Some(&qs));
     conv.append_assistant_message(None);
     let prompt = conv.get_prompt();
-    println!("prompt: {}", prompt);
     println!("loading image");
     let image_processor = CLIPImageProcessor::from_pretrained(&llava_config.mm_vision_tower)?;
     let (image_size, image_tensor) =
         load_image(&args.image_file, &image_processor, &llava_config, dtype)?;
     let image_tensor = image_tensor.to_device(&device)?;
-    println!("image shape: {:?}", image_tensor.shape());
 
     let mut logits_processor = {
         let temperature = f64::from(args.temperature);
@@ -182,32 +177,31 @@ fn main() -> Result<()> {
     // get input tokens
     let tokens =
         tokenizer_image_token(&prompt, &tokenizer, IMAGE_TOKEN_INDEX as i64, &llava_config)?;
-    let mut input_embeds = llava.prepare_inputs_labels_for_multimodal(
+    let input_embeds = llava.prepare_inputs_labels_for_multimodal(
         &tokens,
-        &vec![image_tensor],
-        &vec![image_size],
+        &[image_tensor],
+        &[image_size],
     )?;
-    println!("input_embeds: {:?}", input_embeds.shape());
     //inference loop, based on https://github.com/huggingface/candle/blob/main/candle-examples/examples/llama/main.rs
     let mut tokenizer = candle_examples::token_output_stream::TokenOutputStream::new(tokenizer);
     let mut index_pos = 0;
+    let mut _input_embeds = input_embeds.clone();
     for index in 0..args.max_new_tokens {
-        let (_, input_embeds_len, _) = input_embeds.dims3()?;
+        let (_, input_embeds_len, _) = _input_embeds.dims3()?;
         let (context_size, context_index) = if cache.use_kv_cache && index > 0 {
             (1, index_pos)
         } else {
             (input_embeds_len, 0)
         };
-        let input = input_embeds.i((.., input_embeds_len.saturating_sub(context_size).., ..))?;
-        let logits = llava.generate(&input, context_index, &mut cache)?; //[1,32000]
-                                                                         //println!("is this happened?");
+        let input = _input_embeds.i((.., input_embeds_len.saturating_sub(context_size).., ..))?;
+        let logits = llava.forward(&input, context_index, &mut cache)?; //[1,32000]
         let logits = logits.squeeze(0)?;
         let (_, input_len, _) = input.dims3()?;
         index_pos += input_len;
         let next_token = logits_processor.sample(&logits)?;
         let next_token_tensor = Tensor::from_vec(vec![next_token], 1, &device)?;
         let next_embeds = llava.llama.embed(&next_token_tensor)?.unsqueeze(0)?;
-        input_embeds = Tensor::cat(&[input_embeds, next_embeds], 1)?;
+        _input_embeds = Tensor::cat(&[_input_embeds, next_embeds], 1)?;
         if Some(next_token) == eos_token_id {
             break;
         }

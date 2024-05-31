@@ -1,7 +1,6 @@
 use std::cmp::min;
 
 use candle_core::bail;
-use candle_core::error;
 use candle_core::Device;
 use candle_core::Result;
 use candle_core::Tensor;
@@ -20,11 +19,11 @@ pub fn process_image(
     processor: &CLIPImageProcessor,
     llava_config: &LLaVAConfig,
 ) -> candle_core::Result<Tensor> {
-    if llava_config.image_aspect_ratio == "square".to_string() {
-        return processor.preprocess(image);
-    } else if llava_config.image_aspect_ratio == "anyres".to_string() {
+    if llava_config.image_aspect_ratio == *"square" {
+        processor.preprocess(image)?.unsqueeze(0)
+    } else if llava_config.image_aspect_ratio == *"anyres" {
         process_anyres_image(image, processor, &llava_config.image_grid_pinpoints)
-    } else if llava_config.image_aspect_ratio == "pad".to_string() {
+    } else if llava_config.image_aspect_ratio == *"pad" {
         process_pad_image(image, processor)
     } else {
         bail!("Invalid image aspect ratio")
@@ -60,8 +59,8 @@ fn process_anyres_image(
     let best_resolution = select_best_resolution(original_size, grid_pinpoints);
     let image_padded = resize_and_pad_image(image, best_resolution);
     let image_original_resize = image.resize_exact(
-        processor.size as u32,
-        processor.size as u32,
+        processor.size,
+        processor.size,
         image::imageops::FilterType::CatmullRom,
     );
     let mut patches = vec![image_original_resize];
@@ -77,18 +76,20 @@ fn process_anyres_image(
 
 fn expand2square(image: &DynamicImage, background_color: Rgb<u8>) -> DynamicImage {
     let (width, height) = image.dimensions();
-    if width == height {
-        image.clone()
-    } else if width > height {
-        let mut new_image =
-            DynamicImage::from(RgbImage::from_pixel(width, width, background_color));
-        overlay(&mut new_image, image, 0, ((width - height) / 2) as i64);
-        new_image
-    } else {
-        let mut new_image =
-            DynamicImage::from(RgbImage::from_pixel(height, height, background_color));
-        overlay(&mut new_image, image, ((height - width) / 2) as i64, 0);
-        new_image
+    match width.cmp(&height) {
+        std::cmp::Ordering::Less => {
+            let mut new_image =
+                DynamicImage::from(RgbImage::from_pixel(height, height, background_color));
+            overlay(&mut new_image, image, ((height - width) / 2) as i64, 0);
+            new_image
+        }
+        std::cmp::Ordering::Equal => image.clone(),
+        std::cmp::Ordering::Greater => {
+            let mut new_image =
+                DynamicImage::from(RgbImage::from_pixel(width, width, background_color));
+            overlay(&mut new_image, image, 0, ((width - height) / 2) as i64);
+            new_image
+        }
     }
 }
 
@@ -133,7 +134,7 @@ fn select_best_resolution(
     let mut best_fit = (0, 0);
     let _original_width_f = original_width as f32;
     let _original_height_f = original_height as f32;
-    let mut max_effective_resolition = 0 as u32;
+    let mut max_effective_resolition = 0_u32;
     let mut min_wasted_resolution = u32::MAX;
     for (width, height) in possible_resolutions {
         let _width_f = *width as f32;
@@ -187,24 +188,24 @@ pub fn get_model_name_from_path(model_path: &str) -> String {
     }
 }
 
-fn duplicate_vec<T>(vec: &Vec<T>, n: usize) -> Vec<T>
+fn duplicate_vec<T>(vec: &[T], n: usize) -> Vec<T>
 where
     T: Clone,
 {
     let mut res = Vec::new();
     for _ in 0..n {
-        res.extend(vec.clone());
+        res.extend(vec.to_owned());
     }
     res
 }
 
-fn insert_separator<T>(X: Vec<Vec<T>>, sep: Vec<T>) -> Vec<Vec<T>>
+fn insert_separator<T>(x: Vec<Vec<T>>, sep: Vec<T>) -> Vec<Vec<T>>
 where
     T: Clone,
 {
     let sep = vec![sep];
-    let sep = duplicate_vec(&sep, X.len());
-    let mut res = X
+    let sep = duplicate_vec(&sep, x.len());
+    let mut res = x
         .iter()
         .zip(sep.iter())
         .flat_map(|(x, y)| vec![x.clone(), y.clone()])
@@ -234,8 +235,8 @@ pub fn tokenizer_image_token(
         .collect::<Vec<Vec<i64>>>();
     let mut input_ids = Vec::new();
     let mut offset = 0;
-    if prompt_chunks.len() > 0
-        && prompt_chunks[0].len() > 0
+    if !prompt_chunks.is_empty()
+        && !prompt_chunks[0].is_empty()
         && prompt_chunks[0][0] == llava_config.bos_token_id.unwrap() as i64
     {
         offset = 1;
@@ -244,7 +245,7 @@ pub fn tokenizer_image_token(
 
     for x in insert_separator(
         prompt_chunks,
-        duplicate_vec(&vec![image_token_index], offset + 1),
+        duplicate_vec(&[image_token_index], offset + 1),
     )
     .iter()
     {

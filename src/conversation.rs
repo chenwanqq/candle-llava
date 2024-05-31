@@ -1,11 +1,9 @@
-use std::default::Default;
-
 pub enum SeparatorStyle {
-    SINGLE,
-    TWO,
-    MPT,
-    PLAIN,
-    LLAMA2,
+    //SINGLE,
+    Two,
+    Mpt,
+    //PLAIN,
+    //LLAMA2,
 }
 pub struct Conversation {
     pub system: String,
@@ -43,12 +41,12 @@ impl Conversation {
     pub fn conv_chatml_direct() -> Self {
         Conversation::new(
             "<|im_start|>system\nAnswer the questions.",
-            &vec![
+            &[
                 "<|im_start|>user\n".to_string(),
                 "<|im_start|>assistant\n".to_string(),
             ],
             0,
-            SeparatorStyle::MPT,
+            SeparatorStyle::Mpt,
             "<|im_end|>",
             None,
             "mpt",
@@ -58,12 +56,12 @@ impl Conversation {
     pub fn conv_llava_v1() -> Self {
         Conversation::new(
             "A chat between a curious human and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the human's questions.",
-            &vec![
+            &[
                 "USER".to_string(),
                 "ASSISTANT".to_string(),
             ],
             0,
-            SeparatorStyle::TWO,
+            SeparatorStyle::Two,
             " ",
             Some("</s>"),
             "v1"
@@ -84,29 +82,29 @@ impl Conversation {
 
     pub fn get_prompt(&self) -> String {
         match self.sep_style {
-            SeparatorStyle::MPT => {
+            SeparatorStyle::Mpt => {
                 let mut ret = String::new();
                 ret.push_str(&self.system);
                 ret.push_str(&self.sep);
                 for (role, message) in &self.messages {
-                    ret.push_str(&role);
+                    ret.push_str(role);
                     if let Some(message) = message {
-                        ret.push_str(&message);
+                        ret.push_str(message);
                     };
                     ret.push_str(&self.sep);
                 }
                 ret
             }
-            SeparatorStyle::TWO => {
+            SeparatorStyle::Two => {
                 let seps = [self.sep.clone(), self.sep2.clone().unwrap()];
                 let mut ret = String::new();
                 ret.push_str(&self.system);
                 ret.push_str(&seps[0]);
                 for (i, (role, message)) in self.messages.iter().enumerate() {
-                    ret.push_str(&role);
+                    ret.push_str(role);
                     if let Some(message) = message {
                         ret.push_str(": "); // strictly follow the python implementation, otherwise it will cause some minor difference between tokens ^_^
-                        ret.push_str(&message);
+                        ret.push_str(message);
                         ret.push_str(&seps[i % 2]);
                     } else {
                         ret.push(':')
@@ -114,7 +112,6 @@ impl Conversation {
                 }
                 ret
             }
-            _ => todo!(),
         }
     }
 }

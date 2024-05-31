@@ -311,13 +311,13 @@ impl Llama {
         self.wte.forward(x)
     }
 
-    pub fn generate(
+    pub fn forward_input_embed(
         &self,
         input_embed: &Tensor,
         index_pos: usize,
         cache: &mut Cache,
     ) -> Result<Tensor> {
-        let (_,seq_len,_) = input_embed.dims3()?;
+        let (_, seq_len, _) = input_embed.dims3()?;
         let mut x = input_embed.clone();
         for (block_idx, block) in self.blocks.iter().enumerate() {
             x = block.forward(&x, index_pos, block_idx, cache)?;
@@ -327,7 +327,7 @@ impl Llama {
         let logits = self.lm_head.forward(&x)?;
         logits.to_dtype(DType::F32)
     }
-
+    /*
     pub fn forward(&self, x: &Tensor, index_pos: usize, cache: &mut Cache) -> Result<Tensor> {
         let (_b_sz, seq_len) = x.dims2()?;
         let mut x = self.wte.forward(x)?;
@@ -339,6 +339,7 @@ impl Llama {
         let logits = self.lm_head.forward(&x)?;
         logits.to_dtype(DType::F32)
     }
+    */
 
     pub fn load(vb: VarBuilder, cfg: &Config) -> Result<Self> {
         let wte = embedding(cfg.vocab_size, cfg.hidden_size, vb.pp("model.embed_tokens"))?;
