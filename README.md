@@ -1,6 +1,8 @@
 # candle-llava
 implement LLaVA using candle
 
+The code is based on [https://github.com/haotian-liu/LLaVA](https://github.com/haotian-liu/LLaVA), Hence the llava-hf version of config may perform differently.
+
 
 ## Status
 
@@ -84,6 +86,7 @@ cargo run --bin multi_images -- --image-files "images/llava_v1_5_radar.jpg" --im
    - [ ] translate of model
    - [ ] take care of constant such as image_token_index
    - [ ] support of mistral language model
+   - [ ] modify of image processor config
 
 - [ ] LoRA
 - [ ] More config support. Now we only support llava-v1.6
