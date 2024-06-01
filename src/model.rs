@@ -2,7 +2,6 @@ use crate::clip::clip_vit_large_patch14_336;
 use crate::llama::Cache;
 use crate::llama::Llama;
 use crate::utils::get_anyres_image_grid_shape;
-use crate::IMAGE_TOKEN_INDEX;
 use candle_core::bail;
 use candle_core::Device;
 use candle_core::IndexOp;
@@ -132,32 +131,28 @@ pub struct ClipVisionTower {
 }
 
 impl ClipVisionTower {
-    pub fn load(vb: &VarBuilder, config: &LLaVAConfig) -> Result<Self> {
-        let clip_vision_config = if config.mm_vision_tower == "openai/clip-vit-large-patch14-336" {
+    pub fn new(
+        vb: VarBuilder,
+        select_layer: isize,
+        select_feature_method: &str,
+        config: &Option<ClipVisionConfig>,
+    ) -> Result<Self> {
+        // to simulate hidden_state of python version clip
+        let _config = if config.is_none() {
             clip_vit_large_patch14_336()
         } else {
-            bail!(
-                "vision tower {} is not implemented yet",
-                config.mm_vision_tower
-            )
+            config.clone().unwrap()
         };
-        // to simulate hidden_state of python version clip
-        let select_layer = match config.mm_vision_select_layer {
-            -1 | -2 => config.mm_vision_select_layer,
-            _ => bail!(
-                "Unsupported select layer: {}",
-                config.mm_vision_select_layer
-            ),
+        let select_layer = match select_layer {
+            -1 | -2 => select_layer,
+            _ => bail!("Unsupported select layer: {}", select_layer),
         };
-        let model = ClipVisionTransformerWithHiddenStates::new(
-            vb.pp("model.vision_tower.vision_tower.vision_model"),
-            &clip_vision_config,
-        )?;
+        let model = ClipVisionTransformerWithHiddenStates::new(vb, &_config)?;
         Ok(Self {
             model,
             select_layer,
-            select_feature_method: config.mm_vision_select_feature.clone(),
-            config: clip_vision_config,
+            select_feature_method: select_feature_method.to_string(),
+            config: _config,
         })
     }
 
@@ -187,15 +182,39 @@ pub struct LLaVA {
 }
 
 impl LLaVA {
-    pub fn load(vb: VarBuilder, config: &LLaVAConfig) -> Result<Self> {
+    pub fn load(
+        vb: VarBuilder,
+        config: &LLaVAConfig,
+        clip_vision_config: Option<ClipVisionConfig>,
+    ) -> Result<Self> {
         let device = vb.device().clone();
-        let clip_vision_tower = ClipVisionTower::load(&vb, config)?;
-        let mm_projector = MMProjector::load(&vb, config)?;
         let llama_config = config.to_llama_config();
-        let image_newline = vb
-            .get(&[config.hidden_size], "model.image_newline")?
-            .to_device(&device)?;
-        let llama = Llama::load(vb, &llama_config)?;
+        let mm_projector = MMProjector::load(&vb, config)?;
+        let (clip_vision_tower, image_newline, llama) = if config._name_or_path.contains("hf") {
+            (
+                ClipVisionTower::new(
+                    vb.pp("vision_tower.vision_model"),
+                    config.mm_vision_select_layer,
+                    &config.mm_vision_select_feature,
+                    &clip_vision_config,
+                )?,
+                vb.get(&[config.hidden_size], "image_newline")?
+                    .to_device(&device)?,
+                Llama::load(vb.pp("language_model"), &llama_config)?,
+            )
+        } else {
+            (
+                ClipVisionTower::new(
+                    vb.pp("model.vision_tower.vision_tower.vision_model"),
+                    config.mm_vision_select_layer,
+                    &config.mm_vision_select_feature,
+                    &clip_vision_config,
+                )?,
+                vb.get(&[config.hidden_size], "model.image_newline")?
+                    .to_device(&device)?,
+                Llama::load(vb, &llama_config)?,
+            )
+        };
         Ok(Self {
             clip_vision_tower,
             image_newline,
@@ -319,7 +338,7 @@ impl LLaVA {
                     .iter()
                     .enumerate()
                     .filter_map(|(i, x)| {
-                        if *x == IMAGE_TOKEN_INDEX as i64 {
+                        if *x == self.config.image_token_index as i64 {
                             Some(i as i64)
                         } else {
                             None
@@ -337,7 +356,7 @@ impl LLaVA {
         let input_ids_noim = input_ids_vec
             .iter()
             .filter_map(|x| {
-                if *x != IMAGE_TOKEN_INDEX as i64 {
+                if *x != self.config.image_token_index as i64 {
                     Some(*x)
                 } else {
                     None

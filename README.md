@@ -4,24 +4,22 @@ implement LLaVA using candle
 The code is based on [https://github.com/haotian-liu/LLaVA](https://github.com/haotian-liu/LLaVA), Hence the llava-hf version of config may perform differently.
 
 
-## Status
+The llava-hf models containtokenizer.json, so if you want pure-rust experience, I suggest you to use llava-hf version.
 
-tested on llava-v1.6-vicuna-7b
+## model zoo
+* [liuhaotian/LLaVA](https://huggingface.co/liuhaotian)
+* [llava-hf](https://huggingface.co/llava-hf)
+
+Right now I have tested on liuhaotian/llava-v1.6-vicuna-7b and llava-hf/llava-v1.6-vicuna-7b-hf. The memory use might have room for optimization.
 
 
 ## eval
 
 ### single-image
 ```bash
-cargo run --bin single_image # default args, use llava-v1.6-vicuna-7b, default-image is image/llava_logo.png, prompt is "is this a cat?"
-cargo run --bin single_image -- --image-file "images/llava_v1_5_radar.jpg" --prompt "what does this picture show?"
-```
-
-### multi-image
-
-**warning**: In LLaVA-v1.6, one image can take nearly 3000 tokens, hence multi-images is nearly inpractical.(Default max tokens is 4096)
-```bash
-cargo run --bin multi_images -- --image-files "images/llava_v1_5_radar.jpg" --image-files "images/llava_example_cmp.png"  --prompt  "what are the common things in these pictures?" #this is also the default args
+cargo run  # default args, use liuhaotian/llava-v1.6-vicuna-7b, default-image is image/llava_logo.png, prompt is "is this a cat?"
+cargo run  -- --image-file "images/llava_v1_5_radar.jpg" --prompt "what does this picture show?"
+cargo run -- --model-path "llava-hf/llava-v1.6-vicuna-7b-hf" # use llava-hf model
 ```
 
 ## task
@@ -29,10 +27,11 @@ cargo run --bin multi_images -- --image-files "images/llava_v1_5_radar.jpg" --im
 
 - [x] Load the model weights and configs
    - [x] general llava config(need to rethink what is necessary)
-   - [x] Vision tower(CLIP, partial, only support openai/vit_large_patch14_336)
+   - [x] Vision tower(CLIP)
       - [x] image processor(partial, the format of 'size' and 'crop size' not fully compatible with python transformer)
-   - [x] LLM
-   - [x] (partial, use python script, will use rust to replace) load of tokenizer.model
+   - [ ] LLM
+      - [x] llama/vicuna
+      - [ ] mistral  
 
 - [x] image preprocess
    - [x] clip image processor
@@ -65,7 +64,6 @@ cargo run --bin multi_images -- --image-files "images/llava_v1_5_radar.jpg" --im
    - [x] tokenize text
    - [x] forward
       - [x] single image
-      - [x] multi images
    - [x] output
    - [x] KV cache
    - [ ] conversation mode
@@ -80,22 +78,20 @@ cargo run --bin multi_images -- --image-files "images/llava_v1_5_radar.jpg" --im
    - [ ] nonzero
    - [ ] where
 
-- [ ] **top priority** migrate to support llava-hf series model
-   - [ ] determine whether it is a llava-hf model
-   - [ ] translate of config
-   - [ ] translate of model
-   - [ ] take care of constant such as image_token_index
-   - [ ] support of mistral language model
-   - [ ] modify of image processor config
+- [x] **top priority** migrate to support llava-hf series model
+   - [x] determine whether it is a llava-hf model
+   - [x] translate of config
+   - [x] translate of model
+   - [x] take care of constant such as image_token_index
+   - [x] modify of image processor config
 
 - [ ] LoRA
-- [ ] More config support. Now we only support llava-v1.6
 - [ ] contribution to other projects
    - [ ] [huggingface/candle](https://github.com/huggingface/candle)
    - [ ] [EricLBuehler/mistral.rs](https://github.com/EricLBuehler/mistral.rs)
-- [ ] (optional) memory optimization for LLaVA 1.6 version
+- [ ] memory optimization for LLaVA 1.6 version
 - [ ] (long term)model training 
-
+c
   
 ## Tokenizer Setup  
 ```bash  
@@ -109,6 +105,4 @@ export HF_ENDPOINT=https://hf-mirror.com
 huggingface-cli download --resume-download liuhaotian/llava-v1.6-vicuna-7b
 ```
 ## Limitations
-* Tested only on liuhaotian/llava-v1.6-vicuna-7b
-* Downloading the tokenizer still relies on Python
-* CLIP only supports openai/vit_large_patch14_336
+* Tested only on liuhaotian/llava-v1.6-vicuna-7b version
