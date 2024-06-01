@@ -4,7 +4,7 @@ implement LLaVA using candle
 The code is based on [https://github.com/haotian-liu/LLaVA](https://github.com/haotian-liu/LLaVA), Hence the llava-hf version of config may perform differently.
 
 
-The llava-hf models containtokenizer.json, so if you want pure-rust experience, I suggest you to use llava-hf version.
+The llava-hf models contain tokenizer.json, so if you want pure-rust experience, I suggest you to use llava-hf version.
 
 ## model zoo
 * [liuhaotian/LLaVA](https://huggingface.co/liuhaotian)
