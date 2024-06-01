@@ -51,7 +51,6 @@ struct Args {
     cpu: bool,
     #[arg(long, action)]
     no_kv_cache: bool,
-    // belows are from candle llama. Only reason is to test. Need to refactor
     #[arg(long, default_value = "Is this a cat?")]
     prompt: String,
     /// The seed to use when generating random samples. Copy from candle llama. Not exist in python llava.

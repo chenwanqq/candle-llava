@@ -1,9 +1,11 @@
 # candle-llava
-implement LLaVA using candle  
+implement LLaVA using candle
 
-##
 
-Status: tested on llava-v1.6-vicuna-7b
+## Status
+
+tested on llava-v1.6-vicuna-7b
+
 
 ## eval
 
@@ -75,6 +77,13 @@ cargo run --bin multi_images -- --image-files "images/llava_v1_5_radar.jpg" --im
    - [ ] split
    - [ ] nonzero
    - [ ] where
+
+- [ ] **top priority** migrate to support llava-hf series model
+   - [ ] determine whether it is a llava-hf model
+   - [ ] translate of config
+   - [ ] translate of model
+   - [ ] take care of constant such as image_token_index
+   - [ ] support of mistral language model
 
 - [ ] LoRA
 - [ ] More config support. Now we only support llava-v1.6

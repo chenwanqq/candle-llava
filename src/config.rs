@@ -1,6 +1,7 @@
 use candle_transformers::models::llama::Config;
 use serde::{Deserialize, Serialize};
 
+// original config from liuhaotian/llava
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LLaVAConfig {
     pub _name_or_path: String,
@@ -62,6 +63,7 @@ fn default_mm_patch_merge_type() -> String {
 fn default_image_aspect_ratio() -> String {
     "square".to_string()
 }
+
 impl LLaVAConfig {
     pub fn to_llama_config(&self) -> Config {
         Config {
@@ -79,3 +81,49 @@ impl LLaVAConfig {
         }
     }
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct HFLLaVATextConfig {
+    pub _name_or_path: String,
+    pub architectures: Vec<String>,
+    pub max_position_embeddings: u32,
+    pub model_type: String,
+    pub pad_token_id: u32,
+    pub rms_norm_eps: f32,
+    pub torch_dtype: String,
+    pub vocab_size: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct HFLLaVAVisionConfig {
+    pub hidden_size: u32,
+    pub image_size: u32,
+    pub intermediate_size: u32,
+    pub model_type: String,
+    pub num_attention_heads: u32,
+    pub num_hidden_layers: u32,
+    pub patch_size: u32,
+    pub projection_dim: u32,
+    pub vocab_size: u32,
+}
+
+// config from llava-v1.6-vicuna-7b-hf
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct HFLLaVAConfig {
+    pub architectures: Vec<String>,
+    pub ignore_index: i32,
+    pub image_grid_pinpoints: Vec<(u32, u32)>,
+    pub image_token_index: i32,
+    pub model_type: String,
+    pub projector_hidden_act: String,
+    pub text_config: HFLLaVATextConfig,
+    pub torch_dtype: String,
+    pub transformers_version: String,
+    pub use_image_newline_parameter: bool,
+    pub vision_config: HFLLaVAVisionConfig,
+    pub vision_feature_layer: i32,
+    pub vision_feature_select_strategy: String,
+    pub vocab_size: String,
+}
+
+impl 
