@@ -94,7 +94,8 @@ fn main() -> Result<()> {
             serde_json::from_slice(&std::fs::read(preprocessor_config_filename)?)?;
         let llava_config =
             hf_llava_config.to_llava_config(&model_name, &generation_config, &preprocessor_config);
-        let tokenizer = Tokenizer::from_file("tokenizer/tokenizer.json").map_err(E::msg)?;
+        let tokenizer_filename = api.get("tokenizer.json")?;
+        let tokenizer = Tokenizer::from_file(tokenizer_filename).map_err(E::msg)?;
         let clip_vision_config = hf_llava_config.to_clip_vision_config();
         (
             llava_config,
