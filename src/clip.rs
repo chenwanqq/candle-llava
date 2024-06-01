@@ -269,6 +269,7 @@ impl ClipVisionTransformerWithHiddenStates {
         })
     }
     pub fn output_hidden_states(&self, pixel_values: &Tensor) -> Result<Vec<Tensor>> {
+        //clearly we can optimize memory use if we are sure the select_layer is either -1 or -2. Keep the same behavior as the original python code.
         let hidden_states = pixel_values
             .apply(&self.embeddings)?
             .apply(&self.pre_layer_norm)?;
@@ -283,7 +284,6 @@ impl ClipVisionTransformerWithHiddenStates {
 
 impl Module for ClipVisionTransformerWithHiddenStates {
     fn forward(&self, pixel_values: &Tensor) -> Result<Tensor> {
-        //clearly we can optimize memory use if we are sure the select_layer is either -1 or -2. Keep the same behavior as the original python code.
         let hidden_states = pixel_values
             .apply(&self.embeddings)?
             .apply(&self.pre_layer_norm)?;
