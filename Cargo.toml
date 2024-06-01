@@ -20,11 +20,3 @@ regex = "1.10.4"
 image = "0.25.1"
 tracing = "0.1.40"
 
-[[bin]]
-name = "single_image"
-path = "src/single_image.rs"
-
-[[bin]]
-name = "multi_images"
-path = "src/multi_images.rs"
-
