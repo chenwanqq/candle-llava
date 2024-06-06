@@ -1,0 +1,9 @@
+[package]
+name = "llava-kernels"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+[build-dependencies]
+bindgen_cuda = "0.1.5"
