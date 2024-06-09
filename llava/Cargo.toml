@@ -18,5 +18,5 @@ tokenizers = { workspace = true }
 regex = { workspace = true }
 image = { workspace = true }
 tracing = { workspace = true }
-llava-kernels = { workspace = true }
+candle-nonzero = { workspace = true }
 half = { workspace = true }

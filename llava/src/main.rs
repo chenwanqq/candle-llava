@@ -6,7 +6,6 @@ mod conversation;
 mod llama;
 mod model;
 mod utils;
-mod ops;
 use candle_transformers::generation::{LogitsProcessor, Sampling};
 use config::{HFGenerationConfig, HFLLaVAConfig, HFPreProcessorConfig};
 use constants::*;

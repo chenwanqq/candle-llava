@@ -1,5 +1,5 @@
 [package]
-name = "llava-kernels"
+name = "candle-nonzero"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,3 +10,10 @@ half = { workspace = true }
 
 [build-dependencies]
 bindgen_cuda = "0.1.5"
+
+[dev-dependencies]
+criterion = "0.5.1"
+
+[[bench]]
+name = "nonzero"
+harness = false
