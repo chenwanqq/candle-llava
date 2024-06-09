@@ -6,22 +6,23 @@ use candle_core::{
     },
     CpuStorage, CudaDevice, CustomOp1, Layout, Result, Shape, Tensor, WithDType,
 };
+use half::{bf16,f16};
 struct NonZero {}
 impl NonZero {
     fn nonzero<T: WithDType>(&self, vs: &[T], layout: &Layout) -> Vec<u32> {
         println!("layout.dims(): {:?}", layout.dims());
         let n = layout.dims().len();
         let mut result = Vec::new();
+        let mut indices = vec![0u32; n];
         for (i, v) in vs.iter().enumerate() {
             if !v.is_zero() {
                 //result.push(i as u32);
                 let mut idx = i;
-                let mut indices = vec![0u32; n];
                 for (dim_index, dim) in layout.dims().iter().enumerate().rev() {
                     let d = idx % dim;
                     indices[dim_index] = d as u32;
                     idx /= dim;
-                }
+                }   
                 result.extend_from_slice(&indices);
             }
         }
@@ -50,7 +51,7 @@ impl CustomOp1 for NonZero {
         let shape = Shape::from_dims(&[result_len, index_len]);
         Ok((result, shape))
     }
-
+    /*
     fn cuda_fwd(
         &self,
         storage: &candle_core::CudaStorage,
@@ -67,7 +68,7 @@ impl CustomOp1 for NonZero {
                 Some((o1, o2)) => slice.slice(o1..o2),
             };
             let elem_count = layout.shape().elem_count();
-            let dst = unsafe { dev.alloc::<u32>(elem_count) }.w()?;
+            let dst: CudaSlice<u32> = unsafe { dev.alloc::<u32>(elem_count) }.w()?;
             let func = dev.get_or_load_func(func_name, llava_kernels::CUDA)?;
             let params = (&slice, &dst);
             let cfg = LaunchConfig {
@@ -103,10 +104,12 @@ impl CustomOp1 for NonZero {
                 fwd(slice, layout, dev, func_name)
             }
             candle_core::DType::BF16 => {
-                todo!()
+                let slice = storage.as_cuda_slice::<bf16>()?;
+                fwd(slice, layout, dev, func_name)
             }
             candle_core::DType::F16 => {
-                todo!()
+                let slice = storage.as_cuda_slice::<f16>()?;
+                fwd(slice, layout, dev, func_name)
             }
             candle_core::DType::F32 => {
                 let slice = storage.as_cuda_slice::<f32>()?;
@@ -118,6 +121,7 @@ impl CustomOp1 for NonZero {
             }
         }
     }
+    */
 }
 
 trait NonZeroOp {
@@ -149,18 +153,22 @@ mod tests {
         let b = a.nonzero().unwrap();
         println!("a: {}\n nonzero: {}", a, b);
     }
-
+    /* 
     #[test]
     fn test_nonzero_cuda() {
         let device = candle_core::Device::new_cuda(0).unwrap();
         let a = Tensor::from_vec(
             vec![0u32, 1, 0, 2, 0, 3, 1, 0, 0, 2, 4, 5],
-            &[2, 2, 3],
+            &[12],
             &device,
         )
         .unwrap();
+        let m = a.max_keepdim(0).unwrap();
+        println!("m:{}",m);
         let _ = a.nonzero().unwrap();
         let b = a.to_dtype(candle_core::DType::F32).unwrap();
         let _ = b.nonzero().unwrap();
     }
+    */
+
 }

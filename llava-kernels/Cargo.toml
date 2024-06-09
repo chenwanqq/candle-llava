@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+cudarc = { workspace = true }
+candle-core = { workspace = true}
+half = { workspace = true }
 
 [build-dependencies]
 bindgen_cuda = "0.1.5"

@@ -19,3 +19,4 @@ regex = { workspace = true }
 image = { workspace = true }
 tracing = { workspace = true }
 llava-kernels = { workspace = true }
+half = { workspace = true }
