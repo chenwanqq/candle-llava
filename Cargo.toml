@@ -20,3 +20,4 @@ tracing = "0.1.40"
 half = "2.4.1"
 candle-nonzero = {path = "candle-nonzero"}
 cudarc = "0.11.4"
+rayon = "1.10"

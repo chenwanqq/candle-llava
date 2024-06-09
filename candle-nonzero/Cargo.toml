@@ -7,6 +7,7 @@ edition = "2021"
 cudarc = { workspace = true }
 candle-core = { workspace = true}
 half = { workspace = true }
+rayon = { workspace = true }
 
 [build-dependencies]
 bindgen_cuda = "0.1.5"

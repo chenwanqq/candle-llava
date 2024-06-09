@@ -7,25 +7,31 @@ use candle_core::{
     Result, Shape, Tensor, WithDType,
 };
 use half::{bf16, f16};
+use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
 struct NonZero {}
 impl NonZero {
     fn nonzero<T: WithDType>(&self, vs: &[T], layout: &Layout) -> Vec<u32> {
         let n = layout.dims().len();
-        let mut result = Vec::new();
-        let mut indices = vec![0u32; n];
-        for (i, v) in vs.iter().enumerate() {
-            if !v.is_zero() {
-                //result.push(i as u32);
-                let mut idx = i;
-                for (dim_index, dim) in layout.dims().iter().enumerate().rev() {
-                    let d = idx % dim;
-                    indices[dim_index] = d as u32;
-                    idx /= dim;
+        let result = vs
+            .par_iter()
+            .enumerate()
+            .filter_map(|(i, v)| {
+                if !v.is_zero() {
+                    let mut indices = vec![0u32; n];
+                    let mut idx = i;
+                    for (dim_index, dim) in layout.dims().iter().enumerate().rev() {
+                        let d = idx % dim;
+                        indices[dim_index] = d as u32;
+                        idx /= dim;
+                    }
+                    Some(indices)
+                } else {
+                    None
                 }
-                result.extend_from_slice(&indices);
-            }
-        }
+            })
+            .flatten()
+            .collect();
         result
     }
 }
@@ -175,6 +181,21 @@ fn test_nonzero_cuda() {
     use crate::NonZeroOp;
     use candle_core::Tensor;
     let device = candle_core::Device::new_cuda(0).unwrap();
+    let a = Tensor::from_vec(
+        vec![1f32, 0.0, 2.0, 0.0, 3.0, 0.0, 4.0, 0.0],
+        &[2, 4],
+        &device,
+    )
+    .unwrap();
+    let b = a.nonzero().unwrap();
+    println!("b: {}", b);
+}
+
+#[test]
+fn test_nonzero_cpu() {
+    use crate::NonZeroOp;
+    use candle_core::Tensor;
+    let device = candle_core::Device::Cpu;
     let a = Tensor::from_vec(
         vec![1f32, 0.0, 2.0, 0.0, 3.0, 0.0, 4.0, 0.0],
         &[2, 4],
